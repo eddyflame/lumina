@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Lumina</string>
+    <string name="app_description">Next-Gen Minimalist High Performance PDF Reader</string>
+    <string name="open_pdf">打开 PDF</string>
+    <string name="recent_documents">最近阅读</string>
+    <string name="no_recent_documents">暂无阅读历史，点击上方按钮打开 PDF 文档</string>
+    <string name="crop_enabled">已开启智能白边裁切</string>
+    <string name="crop_disabled">已关闭智能白边裁切</string>
+    <string name="column_focus">分栏聚焦</string>
+    <string name="reading_progress">进度：%1$d / %2$d 页</string>
+</resources>

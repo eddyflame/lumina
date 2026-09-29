@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.6"
+        android:scaleY="0.6"
+        android:translateX="21.6"
+        android:translateY="21.6">
+        <!-- Modern stylized open book / document with light ray -->
+        <path
+            android:fillColor="#38BDF8"
+            android:pathData="M24,20 C24,15.6 27.6,12 32,12 L76,12 C80.4,12 84,15.6 84,20 L84,88 C84,92.4 80.4,96 76,96 L32,96 C27.6,96 24,92.4 24,88 Z" />
+        <path
+            android:fillColor="#0284C7"
+            android:pathData="M34,26 L74,26 L74,32 L34,32 Z M34,40 L74,40 L74,46 L34,46 Z M34,54 L60,54 L60,60 L34,60 Z" />
+        <path
+            android:fillColor="#F8FAFC"
+            android:pathData="M64,68 L80,68 L80,84 L64,84 Z" />
+    </group>
+</vector>
