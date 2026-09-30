@@ -7,8 +7,9 @@
 ## 1. 开发环境要求
 
 - **操作系统**：Linux、macOS 或 Windows (WSL2 / 原生)
-- **JDK**：Java 17 或 21（推荐 OpenJDK 17/21 或 Temurin）
-- **Android Studio**：Ladybug (2024.2+)、Meerkat 或更高版本
+- **JDK / JBR**：Java 17、21 或 Android Studio 自带的 JBR 25 (OpenJDK 25)
+- **Android Studio**：Ladybug (2024.2+)、Meerkat (2025.x)、Quail (2026.1+) 或更高版本
+- **构建工具链**：Gradle 9.6+、AGP 9.4+ (原生支持 Kotlin 2.2+)
 - **Android SDK**：
   - Compile SDK: `36` (Android 16 / Baklava)
   - Target SDK: `36`
