@@ -99,7 +99,7 @@ fun ViewerScreen(
     ModalNavigationDrawer(
         drawerState = rememberDrawerState(
             initialValue = if (uiState.isOutlineDrawerOpen) DrawerValue.Open else DrawerValue.Closed,
-            confirmValueChange = {
+            confirmStateChange = {
                 viewModel.setOutlineDrawerOpen(it == DrawerValue.Open)
                 true
             }
