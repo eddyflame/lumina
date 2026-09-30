@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.lumina.reader.core.crop.PageCropper2
+import org.lumina.reader.core.model.PageEditSpec
 import org.lumina.reader.core.model.PageInfo
 import org.lumina.reader.core.model.PdfDocumentInfo
 import org.lumina.reader.core.model.PdfOutlineItem
@@ -51,7 +52,9 @@ data class ViewerUiState(
     val annotationStrokeWidthDp: Float = 3f,
     val annotations: Map<Int, List<PdfAnnotation>> = emptyMap(),
     val canUndoAnnotation: Boolean = false,
-    val canRedoAnnotation: Boolean = false
+    val canRedoAnnotation: Boolean = false,
+    val pageSpecs: List<PageEditSpec> = emptyList(),
+    val isPageOrganizerOpen: Boolean = false
 )
 
 class ViewerViewModel(application: Application) : AndroidViewModel(application) {
@@ -127,12 +130,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val doc = repository.openDocument(uri)
                 val outlines = repository.pdfEngine.getOutlines()
+                val initialSpecs = (0 until doc.pageCount).map { PageEditSpec(it, 0) }
                 _uiState.update {
                     it.copy(
                         isLoading = false,
                         documentInfo = doc,
                         currentPageIndex = doc.initialPage,
                         outlines = outlines,
+                        pageSpecs = initialSpecs,
+                        isPageOrganizerOpen = false,
                         errorMessage = null
                     )
                 }
@@ -308,6 +314,58 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearAllHistory() {
         repository.clearAllHistory()
+    }
+
+    // ================================= 页面组织与编辑 =================================
+
+    fun setPageOrganizerOpen(isOpen: Boolean) {
+        _uiState.update { it.copy(isPageOrganizerOpen = isOpen) }
+    }
+
+    fun rotatePage(virtualIndex: Int, degreesDelta: Int) {
+        _uiState.update { state ->
+            if (virtualIndex !in state.pageSpecs.indices) return@update state
+            val updated = state.pageSpecs.toMutableList()
+            val old = updated[virtualIndex]
+            updated[virtualIndex] = old.copy(rotationDegrees = old.rotationDegrees + degreesDelta)
+            state.copy(pageSpecs = updated)
+        }
+    }
+
+    fun movePage(fromIndex: Int, toIndex: Int) {
+        _uiState.update { state ->
+            if (fromIndex !in state.pageSpecs.indices || toIndex !in state.pageSpecs.indices) return@update state
+            val updated = state.pageSpecs.toMutableList()
+            val item = updated.removeAt(fromIndex)
+            updated.add(toIndex, item)
+            val newCurrent = if (state.currentPageIndex == fromIndex) toIndex else state.currentPageIndex
+            state.copy(pageSpecs = updated, currentPageIndex = newCurrent)
+        }
+    }
+
+    fun deletePage(virtualIndex: Int) {
+        _uiState.update { state ->
+            if (state.pageSpecs.size <= 1 || virtualIndex !in state.pageSpecs.indices) return@update state
+            val updated = state.pageSpecs.toMutableList()
+            updated.removeAt(virtualIndex)
+            val newCurrent = state.currentPageIndex.coerceAtMost(updated.size - 1)
+            state.copy(pageSpecs = updated, currentPageIndex = newCurrent)
+        }
+    }
+
+    fun rotateAllPages(degreesDelta: Int) {
+        _uiState.update { state ->
+            val updated = state.pageSpecs.map { it.copy(rotationDegrees = it.rotationDegrees + degreesDelta) }
+            state.copy(pageSpecs = updated)
+        }
+    }
+
+    fun resetPageEdits() {
+        _uiState.update { state ->
+            val count = state.documentInfo?.pageCount ?: 0
+            val initialSpecs = (0 until count).map { PageEditSpec(it, 0) }
+            state.copy(pageSpecs = initialSpecs)
+        }
     }
 
     override fun onCleared() {

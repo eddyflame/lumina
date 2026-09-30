@@ -37,6 +37,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.launch
 import org.lumina.reader.core.annotation.AnnotationTool
+import org.lumina.reader.core.model.PageEditSpec
 import org.lumina.reader.core.model.ReadingColorMode
 import org.lumina.reader.core.model.ReadingLayoutMode
 import org.lumina.reader.ui.theme.NightBackground
@@ -55,7 +56,31 @@ fun ViewerScreen(
     val activity = context as? Activity
 
     val docInfo = uiState.documentInfo
-    val pageCount = docInfo?.pageCount ?: 1
+    val effectiveSpecs = uiState.pageSpecs.ifEmpty {
+        val total = docInfo?.pageCount ?: 1
+        (0 until total).map { PageEditSpec(it, 0) }
+    }
+    val pageCount = effectiveSpecs.size.coerceAtLeast(1)
+
+    // 页面组织与编辑全屏工作台
+    if (uiState.isPageOrganizerOpen) {
+        PageOrganizerScreen(
+            pageSpecs = effectiveSpecs,
+            currentPageIndex = uiState.currentPageIndex,
+            viewModel = viewModel,
+            onPageSelected = { virtualIndex ->
+                viewModel.setPageOrganizerOpen(false)
+                viewModel.onPageChanged(virtualIndex)
+            },
+            onRotatePage = { idx, deg -> viewModel.rotatePage(idx, deg) },
+            onMovePage = { from, to -> viewModel.movePage(from, to) },
+            onDeletePage = { idx -> viewModel.deletePage(idx) },
+            onRotateAll = { deg -> viewModel.rotateAllPages(deg) },
+            onResetAll = { viewModel.resetPageEdits() },
+            onClose = { viewModel.setPageOrganizerOpen(false) }
+        )
+        return
+    }
 
     val listState = rememberLazyListState()
     val pagerState = rememberPagerState(
@@ -247,9 +272,11 @@ fun ViewerScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(vertical = 16.dp)
                         ) {
-                            items(docInfo.pageCount) { pageIndex ->
+                            items(pageCount) { virtualIndex ->
+                                val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
                                 PdfPageView(
-                                    pageIndex = pageIndex,
+                                    pageIndex = spec.originalPageIndex,
+                                    rotationDegrees = spec.normalizedRotation,
                                     isAutoCrop = uiState.isAutoCropEnabled,
                                     activeColumnBounds = uiState.activeColumnBounds,
                                     colorFilter = pageColorFilter,
@@ -258,7 +285,7 @@ fun ViewerScreen(
                                     activeTool = uiState.annotationTool,
                                     annotationColor = uiState.annotationColor,
                                     annotationStrokeWidthDp = uiState.annotationStrokeWidthDp,
-                                    pageAnnotations = uiState.annotations[pageIndex] ?: emptyList(),
+                                    pageAnnotations = uiState.annotations[spec.originalPageIndex] ?: emptyList(),
                                     onAddInkAnnotation = { idx, strokes, isHighlighter ->
                                         viewModel.addInkAnnotation(idx, strokes, isHighlighter)
                                     },
@@ -279,13 +306,15 @@ fun ViewerScreen(
                         HorizontalPager(
                             state = pagerState,
                             modifier = Modifier.fillMaxSize()
-                        ) { pageIndex ->
+                        ) { virtualIndex ->
+                            val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
                             Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
                                 PdfPageView(
-                                    pageIndex = pageIndex,
+                                    pageIndex = spec.originalPageIndex,
+                                    rotationDegrees = spec.normalizedRotation,
                                     isAutoCrop = uiState.isAutoCropEnabled,
                                     activeColumnBounds = uiState.activeColumnBounds,
                                     colorFilter = pageColorFilter,
@@ -294,7 +323,7 @@ fun ViewerScreen(
                                     activeTool = uiState.annotationTool,
                                     annotationColor = uiState.annotationColor,
                                     annotationStrokeWidthDp = uiState.annotationStrokeWidthDp,
-                                    pageAnnotations = uiState.annotations[pageIndex] ?: emptyList(),
+                                    pageAnnotations = uiState.annotations[spec.originalPageIndex] ?: emptyList(),
                                     onAddInkAnnotation = { idx, strokes, isHighlighter ->
                                         viewModel.addInkAnnotation(idx, strokes, isHighlighter)
                                     },
@@ -384,6 +413,7 @@ fun ViewerScreen(
                     onToggleLandscape = { viewModel.toggleLandscape() },
                     onToggleLayoutMode = { viewModel.toggleLayoutMode() },
                     onSetColorMode = { viewModel.setColorMode(it) },
+                    onOpenPageOrganizer = { viewModel.setPageOrganizerOpen(true) },
                     onShowJumpDialog = { showJumpDialog = true },
                     onShowDocInfoDialog = { showDocInfoDialog = true }
                 )
@@ -418,7 +448,7 @@ fun ViewerScreen(
                 onStrokeWidthChange = { viewModel.setAnnotationStrokeWidth(it) },
                 onUndo = { viewModel.undoAnnotation() },
                 onRedo = { viewModel.redoAnnotation() },
-                onClearPage = { viewModel.clearAllAnnotationsForPage(uiState.currentPageIndex) },
+                onClearPage = { viewModel.clearAllAnnotationsForPage(effectiveSpecs[uiState.currentPageIndex.coerceIn(0, pageCount - 1)].originalPageIndex) },
                 onClose = { viewModel.setAnnotationTool(AnnotationTool.NONE) },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )

@@ -47,6 +47,7 @@ import kotlin.math.roundToInt
 @Composable
 fun PdfPageView(
     pageIndex: Int,
+    rotationDegrees: Int = 0,
     isAutoCrop: Boolean,
     activeColumnBounds: PageCropper2.CropBounds?,
     colorFilter: ColorFilter?,
@@ -210,6 +211,9 @@ fun PdfPageView(
             val contentBoxModifier = (if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
                 .clip(RoundedCornerShape(4.dp))
                 .graphicsLayer {
+                    if (rotationDegrees != 0) {
+                        rotationZ = rotationDegrees.toFloat()
+                    }
                     if (isAutoCrop || activeColumnBounds != null) {
                         scaleX = zoomFactor
                         scaleY = zoomFactor
