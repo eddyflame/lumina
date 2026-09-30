@@ -33,6 +33,8 @@ data class ViewerUiState(
     val layoutMode: ReadingLayoutMode = ReadingLayoutMode.CONTINUOUS_VERTICAL,
     val isOverlayVisible: Boolean = true,
     val isOutlineDrawerOpen: Boolean = false,
+    val isFullscreen: Boolean = false,
+    val isLandscape: Boolean = false,
     val outlines: List<PdfOutlineItem> = emptyList(),
     val errorMessage: String? = null
 )
@@ -58,7 +60,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openDocument(uri: Uri) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null, activeColumnBounds = null) }
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    errorMessage = null,
+                    activeColumnBounds = null,
+                    isFullscreen = false,
+                    isLandscape = false
+                )
+            }
             try {
                 val doc = repository.openDocument(uri)
                 val outlines = repository.pdfEngine.getOutlines()
@@ -100,6 +110,54 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setColorMode(mode: ReadingColorMode) {
         _uiState.update { it.copy(colorMode = mode) }
+    }
+
+    fun setLayoutMode(mode: ReadingLayoutMode) {
+        _uiState.update { it.copy(layoutMode = mode) }
+    }
+
+    fun toggleLayoutMode() {
+        _uiState.update {
+            val next = if (it.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL
+            } else {
+                ReadingLayoutMode.CONTINUOUS_VERTICAL
+            }
+            it.copy(layoutMode = next)
+        }
+    }
+
+    fun toggleFullscreen() {
+        _uiState.update {
+            val nextFullscreen = !it.isFullscreen
+            it.copy(
+                isFullscreen = nextFullscreen,
+                isOverlayVisible = if (nextFullscreen) false else it.isOverlayVisible
+            )
+        }
+    }
+
+    fun setFullscreen(fullscreen: Boolean) {
+        _uiState.update {
+            it.copy(
+                isFullscreen = fullscreen,
+                isOverlayVisible = if (fullscreen) false else it.isOverlayVisible
+            )
+        }
+    }
+
+    fun toggleLandscape() {
+        _uiState.update { it.copy(isLandscape = !it.isLandscape) }
+    }
+
+    fun setLandscape(landscape: Boolean) {
+        _uiState.update { it.copy(isLandscape = landscape) }
+    }
+
+    fun jumpToPage(pageIndex: Int) {
+        val total = _uiState.value.documentInfo?.pageCount ?: 1
+        val safePage = pageIndex.coerceIn(0, total - 1)
+        onPageChanged(safePage)
     }
 
     fun onPageChanged(index: Int) {
