@@ -1,0 +1,114 @@
+package org.lumina.reader.core.annotation
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class AnnotationTest {
+
+    @Test
+    fun testCoordinateTransformerRoundTrip() {
+        val viewW = 1080f
+        val viewH = 1920f
+        val canvasX = 540f
+        val canvasY = 960f
+
+        val norm = PageCoordinateTransformer.canvasToNormalized(canvasX, canvasY, viewW, viewH)
+        assertEquals(0.5f, norm.x, 0.001f)
+        assertEquals(0.5f, norm.y, 0.001f)
+
+        val (backX, backY) = PageCoordinateTransformer.normalizedToCanvas(norm, viewW, viewH)
+        assertEquals(canvasX, backX, 0.001f)
+        assertEquals(canvasY, backY, 0.001f)
+    }
+
+    @Test
+    fun testPdfPointInversion() {
+        val pageW = 595f // A4 width pt
+        val pageH = 842f // A4 height pt
+
+        // 归一化顶部左侧 (0, 0)
+        val normTopLeft = NormalizedPoint(0f, 0f)
+        val (pdfX1, pdfY1) = PageCoordinateTransformer.normalizedToPdfPoint(normTopLeft, pageW, pageH)
+        // PDF 坐标系原点在左下角，所以顶部对应 Y = pageH
+        assertEquals(0f, pdfX1, 0.001f)
+        assertEquals(pageH, pdfY1, 0.001f)
+
+        // 逆向变换应准确还原
+        val recovered = PageCoordinateTransformer.pdfPointToNormalized(pdfX1, pdfY1, pageW, pageH)
+        assertEquals(0f, recovered.x, 0.001f)
+        assertEquals(0f, recovered.y, 0.001f)
+
+        // 归一化底部右侧 (1, 1) -> PDF (pageW, 0)
+        val normBottomRight = NormalizedPoint(1f, 1f)
+        val (pdfX2, pdfY2) = PageCoordinateTransformer.normalizedToPdfPoint(normBottomRight, pageW, pageH)
+        assertEquals(pageW, pdfX2, 0.001f)
+        assertEquals(0f, pdfY2, 0.001f)
+    }
+
+    @Test
+    fun testInkIntersectionForEraser() {
+        // 创建一条从 (0.2, 0.2) 到 (0.8, 0.8) 的对角线笔迹
+        val stroke = listOf(
+            NormalizedPoint(0.2f, 0.2f),
+            NormalizedPoint(0.5f, 0.5f),
+            NormalizedPoint(0.8f, 0.8f)
+        )
+        val ink = PdfAnnotation.Ink(
+            pageIndex = 0,
+            strokes = listOf(stroke)
+        )
+
+        // 点击正中心 (0.5, 0.5) 应该命中
+        assertTrue(ink.intersects(NormalizedPoint(0.5f, 0.5f)))
+
+        // 点击靠近线段点 (0.51, 0.50) 应该命中
+        assertTrue(ink.intersects(NormalizedPoint(0.51f, 0.50f), threshold = 0.02f))
+
+        // 点击远离线段点 (0.1, 0.9) 不应命中
+        assertFalse(ink.intersects(NormalizedPoint(0.1f, 0.9f)))
+    }
+
+    @Test
+    fun testUndoRedoStackFlow() {
+        val undoManager = UndoRedoManager()
+
+        // 模拟内存暂存仓库
+        val storedList = mutableListOf<PdfAnnotation>()
+        val mockStore = object : AnnotationStore {
+            override fun addAnnotation(annotation: PdfAnnotation) {
+                storedList.add(annotation)
+            }
+            override fun removeAnnotation(annotationId: String) {
+                storedList.removeAll { it.id == annotationId }
+            }
+            override fun getAnnotationsForPage(pageIndex: Int): List<PdfAnnotation> {
+                return storedList.filter { it.pageIndex == pageIndex }
+            }
+        }
+
+        assertFalse(undoManager.canUndoFlow.value)
+        assertFalse(undoManager.canRedoFlow.value)
+
+        val ink1 = PdfAnnotation.Ink(pageIndex = 0, strokes = emptyList())
+        val cmd1 = AddAnnotationCommand(mockStore, ink1)
+
+        undoManager.execute(cmd1)
+        assertEquals(1, storedList.size)
+        assertTrue(undoManager.canUndoFlow.value)
+        assertFalse(undoManager.canRedoFlow.value)
+
+        // 撤销
+        val undone = undoManager.undo()
+        assertTrue(undone)
+        assertEquals(0, storedList.size)
+        assertFalse(undoManager.canUndoFlow.value)
+        assertTrue(undoManager.canRedoFlow.value)
+
+        // 重做
+        val redone = undoManager.redo()
+        assertTrue(redone)
+        assertEquals(1, storedList.size)
+        assertTrue(undoManager.canUndoFlow.value)
+        assertFalse(undoManager.canRedoFlow.value)
+    }
+}
