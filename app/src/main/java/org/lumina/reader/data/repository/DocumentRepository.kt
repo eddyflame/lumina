@@ -5,13 +5,20 @@ import android.content.Intent
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
+import org.lumina.reader.core.annotation.PdfAnnotation
 import org.lumina.reader.core.engine.AndroidPdfRendererEngine
 import org.lumina.reader.core.engine.PdfEngine
+import org.lumina.reader.core.export.PdfDocumentExporter
+import org.lumina.reader.core.model.PageEditSpec
 import org.lumina.reader.core.model.PdfDocumentInfo
 import org.lumina.reader.data.db.HistoryDatabase
 import org.lumina.reader.data.db.RecentDocument
+import java.io.File
 import java.io.FileNotFoundException
+import java.io.IOException
 
 /**
  * 现代 SAF (Storage Access Framework) 与本地持久化书架仓库
@@ -32,7 +39,7 @@ class DocumentRepository(
             try {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
             } catch (_: Exception) {
                 // 部分第三方应用临时分享的 URI 不支持持久化授权，静默忽略
@@ -55,6 +62,97 @@ class DocumentRepository(
         historyDb.recordProgress(uri.toString(), title, info.pageCount, initialPage)
 
         return info
+    }
+
+    /**
+     * 将批注与页面结构修改原子覆写回存到当前 SAF 目标文档中
+     * 采用“临时文件导出 -> 校验完整性 -> 原生流安全覆写 -> 重新装载渲染器”的事务性工作流
+     */
+    suspend fun saveDocumentInPlace(
+        uri: Uri,
+        annotations: Map<Int, List<PdfAnnotation>>,
+        pageSpecs: List<PageEditSpec>
+    ): PdfDocumentInfo = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val tempFile = File.createTempFile("lumina_save_", ".pdf", context.cacheDir)
+        try {
+            // 1. 读取原文档输入流，由 PdfDocumentExporter 执行纯 JVM 合成与物理写入
+            val inputStream = resolver.openInputStream(uri)
+                ?: throw FileNotFoundException("无法打开原始文件输入流: $uri")
+
+            inputStream.use { input ->
+                tempFile.outputStream().use { output ->
+                    PdfDocumentExporter.exportPdf(input, output, annotations, pageSpecs)
+                }
+            }
+
+            // 2. 临时释放底层 PdfRenderer 避免持锁冲突
+            pdfEngine.close()
+
+            // 3. 打开 SAF 目标写入流并覆写
+            val outputStream = try {
+                resolver.openOutputStream(uri, "wt")
+            } catch (e: SecurityException) {
+                throw SecurityException("该文件只读或无写权限，请使用【另存为】功能保存副本", e)
+            } ?: throw IOException("无法获取写入流: $uri")
+
+            outputStream.use { targetOut ->
+                tempFile.inputStream().use { tempIn ->
+                    tempIn.copyTo(targetOut)
+                    targetOut.flush()
+                }
+            }
+
+            // 4. 重新装载并返回最新的文档模型
+            val title = queryDocumentTitle(uri) ?: "Document.pdf"
+            val pfd = resolver.openFileDescriptor(uri, "r")
+                ?: throw FileNotFoundException("无法获取重新装载的文件描述符: $uri")
+
+            val newInfo = pdfEngine.open(uri, title, pfd, 0)
+            historyDb.recordProgress(uri.toString(), title, newInfo.pageCount, 0)
+            newInfo
+        } finally {
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+        }
+    }
+
+    /**
+     * 将包含批注与页面结构修改的文档另存为 (Save As) 到新的 SAF Content URI
+     */
+    suspend fun exportDocumentToUri(
+        sourceUri: Uri,
+        targetUri: Uri,
+        annotations: Map<Int, List<PdfAnnotation>>,
+        pageSpecs: List<PageEditSpec>
+    ) = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val tempFile = File.createTempFile("lumina_export_", ".pdf", context.cacheDir)
+        try {
+            val inputStream = resolver.openInputStream(sourceUri)
+                ?: throw FileNotFoundException("无法打开源文件输入流: $sourceUri")
+
+            inputStream.use { input ->
+                tempFile.outputStream().use { output ->
+                    PdfDocumentExporter.exportPdf(input, output, annotations, pageSpecs)
+                }
+            }
+
+            val targetOut = resolver.openOutputStream(targetUri, "wt")
+                ?: throw IOException("无法创建目标输出流: $targetUri")
+
+            targetOut.use { out ->
+                tempFile.inputStream().use { tempIn ->
+                    tempIn.copyTo(out)
+                    out.flush()
+                }
+            }
+        } finally {
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+        }
     }
 
     fun saveProgress(uri: Uri, title: String, pageCount: Int, pageIndex: Int) {

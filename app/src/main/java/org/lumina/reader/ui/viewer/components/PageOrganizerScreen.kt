@@ -48,6 +48,7 @@ fun PageOrganizerScreen(
     onDeletePage: (virtualIndex: Int) -> Unit,
     onRotateAll: (degreesDelta: Int) -> Unit,
     onResetAll: () -> Unit,
+    onSave: (() -> Unit)? = null,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -92,6 +93,15 @@ fun PageOrganizerScreen(
                             contentDescription = "重置修改",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    if (onSave != null) {
+                        IconButton(onClick = onSave) {
+                            Icon(
+                                Icons.Default.Save,
+                                contentDescription = "保存修改",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

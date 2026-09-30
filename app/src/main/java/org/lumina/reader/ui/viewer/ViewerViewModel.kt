@@ -54,7 +54,9 @@ data class ViewerUiState(
     val canUndoAnnotation: Boolean = false,
     val canRedoAnnotation: Boolean = false,
     val pageSpecs: List<PageEditSpec> = emptyList(),
-    val isPageOrganizerOpen: Boolean = false
+    val isPageOrganizerOpen: Boolean = false,
+    val isSaving: Boolean = false,
+    val saveUserMessage: String? = null
 )
 
 class ViewerViewModel(application: Application) : AndroidViewModel(application) {
@@ -365,6 +367,89 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             val count = state.documentInfo?.pageCount ?: 0
             val initialSpecs = (0 until count).map { PageEditSpec(it, 0) }
             state.copy(pageSpecs = initialSpecs)
+        }
+    }
+
+    // ================================= 物理保存与导出 =================================
+
+    fun clearSaveMessage() {
+        _uiState.update { it.copy(saveUserMessage = null) }
+    }
+
+    /**
+     * 原地回存 (In-Place Overwrite)
+     */
+    fun saveDocument(onSuccess: (() -> Unit)? = null, onError: ((String) -> Unit)? = null) {
+        val uri = _uiState.value.documentInfo?.uri ?: return
+        if (_uiState.value.isSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true) }
+            try {
+                val newInfo = repository.saveDocumentInPlace(
+                    uri = uri,
+                    annotations = _uiState.value.annotations,
+                    pageSpecs = _uiState.value.pageSpecs
+                )
+                undoRedoManager.clear()
+                val initialSpecs = (0 until newInfo.pageCount).map { PageEditSpec(it, 0) }
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        documentInfo = newInfo,
+                        annotations = emptyMap(),
+                        pageSpecs = initialSpecs,
+                        currentPageIndex = 0,
+                        saveUserMessage = "文档保存成功"
+                    )
+                }
+                onSuccess?.invoke()
+            } catch (e: Exception) {
+                val msg = e.localizedMessage ?: "保存失败"
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        saveUserMessage = msg
+                    )
+                }
+                onError?.invoke(msg)
+            }
+        }
+    }
+
+    /**
+     * 另存为新文档 (Export / Save As)
+     */
+    fun exportDocument(targetUri: Uri, onSuccess: (() -> Unit)? = null, onError: ((String) -> Unit)? = null) {
+        val sourceUri = _uiState.value.documentInfo?.uri ?: return
+        if (_uiState.value.isSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true) }
+            try {
+                repository.exportDocumentToUri(
+                    sourceUri = sourceUri,
+                    targetUri = targetUri,
+                    annotations = _uiState.value.annotations,
+                    pageSpecs = _uiState.value.pageSpecs
+                )
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        saveUserMessage = "另存为成功"
+                    )
+                }
+                onSuccess?.invoke()
+            } catch (e: Exception) {
+                val msg = e.localizedMessage ?: "另存为失败"
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        saveUserMessage = msg
+                    )
+                }
+                onError?.invoke(msg)
+            }
         }
     }
 
