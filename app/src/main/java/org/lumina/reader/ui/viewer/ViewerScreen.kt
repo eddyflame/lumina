@@ -103,7 +103,13 @@ fun ViewerScreen(
             onDeletePage = { idx -> viewModel.deletePage(idx) },
             onRotateAll = { deg -> viewModel.rotateAllPages(deg) },
             onResetAll = { viewModel.resetPageEdits() },
-            onSave = { viewModel.saveDocument() },
+            onSave = {
+                val defaultName = docInfo?.title?.let {
+                    val base = if (it.endsWith(".pdf", ignoreCase = true)) it.dropLast(4) else it
+                    "${base}_organized.pdf"
+                } ?: "Document_organized.pdf"
+                saveAsLauncher.launch(defaultName)
+            },
             onClose = { viewModel.setPageOrganizerOpen(false) }
         )
         return
@@ -204,6 +210,7 @@ fun ViewerScreen(
     // 弹窗状态
     var showJumpDialog by remember { mutableStateOf(false) }
     var showDocInfoDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     // 细粒度预测性返回拦截
     BackHandler(enabled = true) {
@@ -442,16 +449,15 @@ fun ViewerScreen(
                     onToggleFullscreen = { viewModel.toggleFullscreen() },
                     onToggleLandscape = { viewModel.toggleLandscape() },
                     onToggleLayoutMode = { viewModel.toggleLayoutMode() },
-                    onSetColorMode = { viewModel.setColorMode(it) },
                     onOpenPageOrganizer = { viewModel.setPageOrganizerOpen(true) },
                     onShowJumpDialog = { showJumpDialog = true },
                     onShowDocInfoDialog = { showDocInfoDialog = true },
-                    onSaveDocument = { viewModel.saveDocument() },
+                    onShowAboutDialog = { showAboutDialog = true },
                     onSaveAsDocument = {
                         val defaultName = docInfo?.title?.let {
-                            if (it.endsWith(".pdf", ignoreCase = true)) it.substringBeforeLast(".") + "_edit.pdf"
-                            else "${it}_edit.pdf"
-                        } ?: "Document_edit.pdf"
+                            val base = if (it.endsWith(".pdf", ignoreCase = true)) it.dropLast(4) else it
+                            "${base}_edited.pdf"
+                        } ?: "Document_edited.pdf"
                         saveAsLauncher.launch(defaultName)
                     }
                 )
@@ -520,6 +526,13 @@ fun ViewerScreen(
             docInfo = docInfo,
             currentPageIndex = uiState.currentPageIndex,
             onDismiss = { showDocInfoDialog = false }
+        )
+    }
+
+    // 软件关于信息弹窗
+    if (showAboutDialog) {
+        AboutAppDialog(
+            onDismiss = { showAboutDialog = false }
         )
     }
 }
