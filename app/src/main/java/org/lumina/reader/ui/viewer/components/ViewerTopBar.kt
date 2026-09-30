@@ -37,6 +37,8 @@ fun ViewerTopBar(
     onOpenPageOrganizer: () -> Unit,
     onShowJumpDialog: () -> Unit,
     onShowDocInfoDialog: () -> Unit,
+    onSaveDocument: () -> Unit,
+    onSaveAsDocument: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
@@ -95,7 +97,35 @@ fun ViewerTopBar(
                     onClick = onToggleAnnotationMode
                 )
 
-                // 5. 更多菜单
+                // 5. 保存文档
+                val hasModifications = uiState.annotations.isNotEmpty() || (
+                    uiState.pageSpecs.isNotEmpty() && (
+                        uiState.pageSpecs.size != (uiState.documentInfo?.pageCount ?: 0) ||
+                        uiState.pageSpecs.mapIndexed { idx, spec -> idx == spec.originalPageIndex && spec.normalizedRotation == 0 }.any { !it }
+                    )
+                )
+
+                if (uiState.isSaving) {
+                    Box(
+                        modifier = Modifier.size(48.dp),
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    ViewerActionButton(
+                        icon = Icons.Default.Save,
+                        contentDescription = "保存修改",
+                        isActive = hasModifications,
+                        onClick = onSaveDocument
+                    )
+                }
+
+                // 6. 更多菜单
                 Box {
                     ViewerActionButton(
                         icon = Icons.Default.MoreVert,
@@ -239,6 +269,36 @@ fun ViewerTopBar(
                         )
 
                         HorizontalDivider()
+
+                        DropdownMenuItem(
+                            text = { Text("保存修改 (Save)") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Save,
+                                    contentDescription = null,
+                                    tint = if (hasModifications) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = {
+                                isMenuOpen = false
+                                onSaveDocument()
+                            }
+                        )
+
+                        DropdownMenuItem(
+                            text = { Text("另存为新文档 (Save As...)") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.SaveAs,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            onClick = {
+                                isMenuOpen = false
+                                onSaveAsDocument()
+                            }
+                        )
 
                         DropdownMenuItem(
                             text = { Text("页面组织与编辑") },

@@ -3,6 +3,8 @@ package org.lumina.reader.ui.viewer
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -62,6 +64,22 @@ fun ViewerScreen(
     }
     val pageCount = effectiveSpecs.size.coerceAtLeast(1)
 
+    val saveAsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { targetUri ->
+        if (targetUri != null) {
+            viewModel.exportDocument(targetUri)
+        }
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(uiState.saveUserMessage) {
+        uiState.saveUserMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearSaveMessage()
+        }
+    }
+
     // 页面组织与编辑全屏工作台
     if (uiState.isPageOrganizerOpen) {
         PageOrganizerScreen(
@@ -77,6 +95,7 @@ fun ViewerScreen(
             onDeletePage = { idx -> viewModel.deletePage(idx) },
             onRotateAll = { deg -> viewModel.rotateAllPages(deg) },
             onResetAll = { viewModel.resetPageEdits() },
+            onSave = { viewModel.saveDocument() },
             onClose = { viewModel.setPageOrganizerOpen(false) }
         )
         return
@@ -415,7 +434,15 @@ fun ViewerScreen(
                     onSetColorMode = { viewModel.setColorMode(it) },
                     onOpenPageOrganizer = { viewModel.setPageOrganizerOpen(true) },
                     onShowJumpDialog = { showJumpDialog = true },
-                    onShowDocInfoDialog = { showDocInfoDialog = true }
+                    onShowDocInfoDialog = { showDocInfoDialog = true },
+                    onSaveDocument = { viewModel.saveDocument() },
+                    onSaveAsDocument = {
+                        val defaultName = docInfo?.title?.let {
+                            if (it.endsWith(".pdf", ignoreCase = true)) it.substringBeforeLast(".") + "_edit.pdf"
+                            else "${it}_edit.pdf"
+                        } ?: "Document_edit.pdf"
+                        saveAsLauncher.launch(defaultName)
+                    }
                 )
             }
 
@@ -451,6 +478,14 @@ fun ViewerScreen(
                 onClearPage = { viewModel.clearAllAnnotationsForPage(effectiveSpecs[uiState.currentPageIndex.coerceIn(0, pageCount - 1)].originalPageIndex) },
                 onClose = { viewModel.setAnnotationTool(AnnotationTool.NONE) },
                 modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            // 全局轻量通知提示条
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 80.dp)
             )
         }
     }
