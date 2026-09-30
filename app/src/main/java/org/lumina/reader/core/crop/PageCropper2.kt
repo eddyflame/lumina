@@ -117,14 +117,6 @@ object PageCropper2 {
         tapXRatio: Float,
         tapYRatio: Float
     ): CropBounds {
-        val pointX = (width * tapXRatio).toInt().coerceIn(0, width - 1)
-        val pointY = (height * tapYRatio).toInt().coerceIn(0, height - 1)
-
-        val top = max(0, pointY - COLUMN_HALF_HEIGHT)
-        val bottom = min(height - 1, pointY + COLUMN_HALF_HEIGHT)
-        val left = max(0, pointX - COLUMN_HALF_HEIGHT)
-        val right = min(width - 1, pointX + COLUMN_HALF_HEIGHT)
-
         val avgLum = max(200, calculateAvgLum(pixels, width, height, 0, 0, width, height))
 
         val colLeft = getLeftColumnBound(pixels, width, height, avgLum, tapXRatio, tapYRatio)
@@ -217,7 +209,7 @@ object PageCropper2 {
             }
             x += V_LINE_SIZE
         }
-        return 0f
+        return if (whiteCount > 0) max(0, x - V_LINE_SIZE).toFloat() / width else 0f
     }
 
     private fun getTopBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
@@ -239,7 +231,7 @@ object PageCropper2 {
             }
             y += H_LINE_SIZE
         }
-        return 0f
+        return if (whiteCount > 0) max(0, y - H_LINE_SIZE).toFloat() / height else 0f
     }
 
     private fun getRightBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
@@ -261,7 +253,7 @@ object PageCropper2 {
             }
             x -= V_LINE_SIZE
         }
-        return 1f
+        return if (whiteCount > 0) min(width, x + 2 * V_LINE_SIZE).toFloat() / width else 1f
     }
 
     private fun getBottomBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
@@ -283,7 +275,7 @@ object PageCropper2 {
             }
             y -= H_LINE_SIZE
         }
-        return 1f
+        return if (whiteCount > 0) min(height, y + 2 * H_LINE_SIZE).toFloat() / height else 1f
     }
 
     private fun getLeftColumnBound(

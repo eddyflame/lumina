@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
@@ -98,9 +99,8 @@ fun ViewerScreen(
             }
         }
         onDispose {
-            val window = activity?.window
-            if (window != null) {
-                val controller = WindowCompat.getInsetsController(window, window.decorView)
+            activity?.window?.let { w ->
+                val controller = WindowCompat.getInsetsController(w, w.decorView)
                 controller.show(WindowInsetsCompat.Type.systemBars())
             }
         }
@@ -182,6 +182,21 @@ fun ViewerScreen(
     // 文档详情弹窗状态
     var showDocInfoDialog by remember { mutableStateOf(false) }
 
+    // 统一页面跳转函数，消除重复的 scroll 逻辑
+    fun navigateToPage(targetIndex: Int, animate: Boolean = false) {
+        val safeIndex = targetIndex.coerceIn(0, pageCount - 1)
+        viewModel.onPageChanged(safeIndex)
+        scope.launch {
+            if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                if (animate) listState.animateScrollToItem(safeIndex)
+                else listState.scrollToItem(safeIndex)
+            } else {
+                if (animate) pagerState.animateScrollToPage(safeIndex)
+                else pagerState.scrollToPage(safeIndex)
+            }
+        }
+    }
+
     val backgroundColor = when (uiState.colorMode) {
         ReadingColorMode.NORMAL -> MaterialTheme.colorScheme.background
         ReadingColorMode.SOFT_DARK -> SoftDarkBackground
@@ -203,7 +218,7 @@ fun ViewerScreen(
             )
         )
         ReadingColorMode.AMOLED_DARK -> ColorFilter.colorMatrix(
-            // 极暗纯黑：纯黑底色，高光字压制到柔和 204，消除刺目反差
+            // 极暗纯黑：白底(255)→纯黑(0)，黑字(0)→浅灰(204)；中间色调对比度压缩约 20%（含彩色图表的 PDF 细节会偏暗）
             ColorMatrix(
                 floatArrayOf(
                     -0.80f,  0f,     0f,     0f, 204f,
@@ -293,14 +308,7 @@ fun ViewerScreen(
                                 selected = uiState.currentPageIndex == item.pageIndex,
                                 onClick = {
                                     scope.launch { drawerState.close() }
-                                    viewModel.onPageChanged(item.pageIndex)
-                                    scope.launch {
-                                        if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
-                                            listState.animateScrollToItem(item.pageIndex)
-                                        } else {
-                                            pagerState.animateScrollToPage(item.pageIndex)
-                                        }
-                                    }
+                                    navigateToPage(item.pageIndex, animate = true)
                                 },
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                             )
@@ -471,29 +479,7 @@ fun ViewerScreen(
                                 }
                             )
 
-                            // 4. 全屏沉浸模式 (点击开启变成蓝色，关闭恢复原色)
-                            ViewerActionButton(
-                                icon = if (uiState.isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                contentDescription = if (uiState.isFullscreen) "退出全屏" else "全屏模式",
-                                isActive = uiState.isFullscreen,
-                                onClick = { viewModel.toggleFullscreen() }
-                            )
-
-                            // 5. 屏幕横屏模式 (点击开启变成蓝色，关闭恢复原色)
-                            ViewerActionButton(
-                                icon = if (uiState.isLandscape) Icons.Default.StayCurrentPortrait else Icons.Default.StayCurrentLandscape,
-                                contentDescription = if (uiState.isLandscape) "恢复竖屏" else "横屏模式",
-                                isActive = uiState.isLandscape,
-                                onClick = { viewModel.toggleLandscape() }
-                            )
-
-                            // 6. 翻页排版切换 (横向单页翻页时变蓝，纵向瀑布流时恢复原色)
-                            ViewerActionButton(
-                                icon = if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) Icons.Default.SwapHoriz else Icons.Default.ViewAgenda,
-                                contentDescription = if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "切换横向翻页" else "切换纵向瀑布流",
-                                isActive = uiState.layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL,
-                                onClick = { viewModel.toggleLayoutMode() }
-                            )
+                            // 4-6: 全屏、横屏、排版切换已在 MoreVert 菜单中提供，不再重复放置顶栏避免小屏溢出
 
                             // 7. 更多菜单
                             Box {
@@ -742,14 +728,7 @@ fun ViewerScreen(
                                 value = currentIdx.toFloat().coerceIn(0f, (pageCount - 1).toFloat()),
                                 onValueChange = { targetPage ->
                                     val page = targetPage.roundToInt().coerceIn(0, pageCount - 1)
-                                    viewModel.onPageChanged(page)
-                                    scope.launch {
-                                        if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
-                                            listState.scrollToItem(page)
-                                        } else {
-                                            pagerState.scrollToPage(page)
-                                        }
-                                    }
+                                    navigateToPage(page)
                                 },
                                 valueRange = 0f..(pageCount - 1).toFloat(),
                                 colors = SliderDefaults.colors(
@@ -793,15 +772,7 @@ fun ViewerScreen(
                             onGo = {
                                 val target = jumpTargetPageText.toIntOrNull()
                                 if (target != null && target in 1..totalPages) {
-                                    val targetIndex = target - 1
-                                    viewModel.onPageChanged(targetIndex)
-                                    scope.launch {
-                                        if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
-                                            listState.scrollToItem(targetIndex)
-                                        } else {
-                                            pagerState.scrollToPage(targetIndex)
-                                        }
-                                    }
+                                    navigateToPage(target - 1)
                                     showJumpDialog = false
                                 }
                             }
@@ -815,15 +786,7 @@ fun ViewerScreen(
                     onClick = {
                         val target = jumpTargetPageText.toIntOrNull()
                         if (target != null && target in 1..totalPages) {
-                            val targetIndex = target - 1
-                            viewModel.onPageChanged(targetIndex)
-                            scope.launch {
-                                if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
-                                    listState.scrollToItem(targetIndex)
-                                } else {
-                                    pagerState.scrollToPage(targetIndex)
-                                }
-                            }
+                            navigateToPage(target - 1)
                             showJumpDialog = false
                         }
                     }
@@ -1059,7 +1022,7 @@ fun PdfPageView(
  */
 @Composable
 private fun ViewerActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     contentDescription: String,
     isActive: Boolean,
     onClick: () -> Unit,
