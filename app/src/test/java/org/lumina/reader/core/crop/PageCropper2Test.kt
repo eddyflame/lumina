@@ -35,6 +35,11 @@ class PageCropper2Test {
             }
         }
 
+        // JIT 预热消除类加载与冷启动耗时
+        repeat(5) {
+            PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        }
+
         val startTime = System.nanoTime()
         val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
         val elapsedMs = (System.nanoTime() - startTime) / 1_000_000.0

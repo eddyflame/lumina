@@ -1,6 +1,9 @@
 package org.lumina.reader.ui.viewer
 
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -9,42 +12,55 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.launch
 import org.lumina.reader.core.crop.PageCropper2
 import org.lumina.reader.core.model.ReadingColorMode
+import org.lumina.reader.core.model.ReadingLayoutMode
 import org.lumina.reader.ui.theme.*
 import kotlin.math.roundToInt
 
@@ -56,20 +72,114 @@ fun ViewerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val activity = context as? Activity
 
-    // 自动恢复至上次阅读位置
-    LaunchedEffect(uiState.documentInfo) {
-        val initialPage = uiState.documentInfo?.initialPage ?: 0
-        if (initialPage > 0) {
-            listState.scrollToItem(initialPage)
+    val docInfo = uiState.documentInfo
+    val pageCount = docInfo?.pageCount ?: 1
+
+    val listState = rememberLazyListState()
+    val pagerState = rememberPagerState(
+        initialPage = uiState.currentPageIndex.coerceIn(0, (pageCount - 1).coerceAtLeast(0)),
+        pageCount = { pageCount }
+    )
+
+    // 全屏沉浸式模式控制：隐藏/展示系统状态栏与导航栏
+    DisposableEffect(uiState.isFullscreen) {
+        val window = activity?.window
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            if (uiState.isFullscreen) {
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+        onDispose {
+            val window = activity?.window
+            if (window != null) {
+                val controller = WindowCompat.getInsetsController(window, window.decorView)
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
         }
     }
 
-    // 监听当前滚动位置更新页码并记录历史
-    LaunchedEffect(listState.firstVisibleItemIndex) {
-        viewModel.onPageChanged(listState.firstVisibleItemIndex)
+    // 屏幕横竖屏旋转控制
+    DisposableEffect(uiState.isLandscape) {
+        activity?.requestedOrientation = if (uiState.isLandscape) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
     }
+
+    // 自动恢复至上次阅读位置
+    LaunchedEffect(docInfo) {
+        val initialPage = docInfo?.initialPage ?: 0
+        if (initialPage > 0) {
+            listState.scrollToItem(initialPage)
+            if (initialPage < pageCount) {
+                pagerState.scrollToPage(initialPage)
+            }
+        }
+    }
+
+    // 监听连续纵向滚动位置更新页码
+    LaunchedEffect(listState.firstVisibleItemIndex) {
+        if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL && !uiState.isLoading) {
+            viewModel.onPageChanged(listState.firstVisibleItemIndex)
+        }
+    }
+
+    // 监听横向单页左右翻页位置更新页码
+    LaunchedEffect(pagerState.currentPage) {
+        if (uiState.layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL && !uiState.isLoading) {
+            viewModel.onPageChanged(pagerState.currentPage)
+        }
+    }
+
+    // 模式切换时平滑同步当前页
+    LaunchedEffect(uiState.layoutMode) {
+        val current = uiState.currentPageIndex
+        if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+            if (listState.firstVisibleItemIndex != current) {
+                listState.scrollToItem(current)
+            }
+        } else {
+            if (pagerState.currentPage != current && current < pageCount) {
+                pagerState.scrollToPage(current)
+            }
+        }
+    }
+
+    // 目录大纲抽屉状态绑定
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    LaunchedEffect(uiState.isOutlineDrawerOpen) {
+        if (uiState.isOutlineDrawerOpen && drawerState.isClosed) {
+            drawerState.open()
+        } else if (!uiState.isOutlineDrawerOpen && drawerState.isOpen) {
+            drawerState.close()
+        }
+    }
+    LaunchedEffect(drawerState.isOpen) {
+        if (uiState.isOutlineDrawerOpen != drawerState.isOpen) {
+            viewModel.setOutlineDrawerOpen(drawerState.isOpen)
+        }
+    }
+
+    // 页面跳转弹窗状态
+    var showJumpDialog by remember { mutableStateOf(false) }
+    var jumpTargetPageText by remember { mutableStateOf("") }
+
+    // 更多菜单状态
+    var isMenuOpen by remember { mutableStateOf(false) }
+
+    // 文档详情弹窗状态
+    var showDocInfoDialog by remember { mutableStateOf(false) }
 
     val backgroundColor = when (uiState.colorMode) {
         ReadingColorMode.NORMAL -> MaterialTheme.colorScheme.background
@@ -97,37 +207,94 @@ fun ViewerScreen(
 
     // 目录大纲抽屉容器
     ModalNavigationDrawer(
-        drawerState = rememberDrawerState(
-            initialValue = if (uiState.isOutlineDrawerOpen) DrawerValue.Open else DrawerValue.Closed,
-            confirmStateChange = {
-                viewModel.setOutlineDrawerOpen(it == DrawerValue.Open)
-                true
-            }
-        ),
+        drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
-                modifier = Modifier.width(300.dp),
+                modifier = Modifier.width(320.dp),
                 drawerContainerColor = MaterialTheme.colorScheme.surface
             ) {
-                Text(
-                    text = "目录大纲",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(16.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "目录大纲",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "共 ${docInfo?.pageCount ?: 0} 页",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 HorizontalDivider()
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(uiState.outlines) { item ->
-                        NavigationDrawerItem(
-                            label = { Text(item.title, fontSize = 14.sp) },
-                            selected = uiState.currentPageIndex == item.pageIndex,
-                            onClick = {
-                                viewModel.setOutlineDrawerOpen(false)
-                                scope.launch {
-                                    listState.animateScrollToItem(item.pageIndex)
-                                }
-                            },
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                if (uiState.outlines.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "该文档未包含目录大纲",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "可使用底部滑块或跳转功能快速翻页",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        items(uiState.outlines) { item ->
+                            NavigationDrawerItem(
+                                label = {
+                                    Text(
+                                        text = item.title,
+                                        fontSize = 14.sp,
+                                        maxLines = 2,
+                                        modifier = Modifier.padding(start = (item.level * 12).dp)
+                                    )
+                                },
+                                badge = {
+                                    Text(
+                                        text = "P${item.pageIndex + 1}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                selected = uiState.currentPageIndex == item.pageIndex,
+                                onClick = {
+                                    scope.launch { drawerState.close() }
+                                    viewModel.onPageChanged(item.pageIndex)
+                                    scope.launch {
+                                        if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                                            listState.animateScrollToItem(item.pageIndex)
+                                        } else {
+                                            pagerState.animateScrollToPage(item.pageIndex)
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -145,26 +312,53 @@ fun ViewerScreen(
                     )
                 }
         ) {
-            val docInfo = uiState.documentInfo
             if (docInfo == null || uiState.isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
-                // PDF 页面瀑布流
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 16.dp)
-                ) {
-                    items(docInfo.pageCount) { pageIndex ->
-                        PdfPageView(
-                            pageIndex = pageIndex,
-                            isAutoCrop = uiState.isAutoCropEnabled,
-                            activeColumnBounds = uiState.activeColumnBounds,
-                            colorFilter = pageColorFilter,
-                            viewModel = viewModel
-                        )
+                when (uiState.layoutMode) {
+                    ReadingLayoutMode.CONTINUOUS_VERTICAL -> {
+                        // 连续纵向瀑布流阅读
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(vertical = 16.dp)
+                        ) {
+                            items(docInfo.pageCount) { pageIndex ->
+                                PdfPageView(
+                                    pageIndex = pageIndex,
+                                    isAutoCrop = uiState.isAutoCropEnabled,
+                                    activeColumnBounds = uiState.activeColumnBounds,
+                                    colorFilter = pageColorFilter,
+                                    viewModel = viewModel,
+                                    layoutMode = uiState.layoutMode,
+                                    onTap = { viewModel.toggleOverlay() }
+                                )
+                            }
+                        }
+                    }
+                    ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL -> {
+                        // 横向单页左右滑动翻页
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize()
+                        ) { pageIndex ->
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                PdfPageView(
+                                    pageIndex = pageIndex,
+                                    isAutoCrop = uiState.isAutoCropEnabled,
+                                    activeColumnBounds = uiState.activeColumnBounds,
+                                    colorFilter = pageColorFilter,
+                                    viewModel = viewModel,
+                                    layoutMode = uiState.layoutMode,
+                                    onTap = { viewModel.toggleOverlay() }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -232,43 +426,160 @@ fun ViewerScreen(
                             }
                         },
                         actions = {
-                            // 目录大纲抽屉唤起
-                            IconButton(onClick = { viewModel.setOutlineDrawerOpen(true) }) {
+                            // 目录大纲抽屉唤起按钮 (修复点击无反应)
+                            IconButton(onClick = {
+                                scope.launch {
+                                    if (drawerState.isOpen) drawerState.close() else drawerState.open()
+                                }
+                            }) {
                                 Icon(
-                                    Icons.Default.FormatListBulleted,
+                                    Icons.AutoMirrored.Filled.FormatListBulleted,
                                     contentDescription = "目录大纲"
                                 )
                             }
 
-                            // 智能白边裁切开关
-                            FilledTonalIconToggleButton(
-                                checked = uiState.isAutoCropEnabled,
-                                onCheckedChange = { viewModel.toggleAutoCrop() }
-                            ) {
+                            // 全屏沉浸模式切换 (新增全屏功能)
+                            IconButton(onClick = { viewModel.toggleFullscreen() }) {
                                 Icon(
-                                    Icons.Default.Crop,
-                                    contentDescription = "智能白边裁切",
-                                    tint = if (uiState.isAutoCropEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    if (uiState.isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                    contentDescription = if (uiState.isFullscreen) "退出全屏" else "全屏模式",
+                                    tint = if (uiState.isFullscreen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
 
-                            // 色彩模式切换
-                            IconButton(onClick = {
-                                val nextMode = when (uiState.colorMode) {
-                                    ReadingColorMode.NORMAL -> ReadingColorMode.NIGHT_INVERT
-                                    ReadingColorMode.NIGHT_INVERT -> ReadingColorMode.SEPIA
-                                    ReadingColorMode.SEPIA -> ReadingColorMode.NORMAL
-                                }
-                                viewModel.setColorMode(nextMode)
-                            }) {
+                            // 屏幕横屏模式切换 (新增横屏功能)
+                            IconButton(onClick = { viewModel.toggleLandscape() }) {
                                 Icon(
-                                    when (uiState.colorMode) {
-                                        ReadingColorMode.NORMAL -> Icons.Default.LightMode
-                                        ReadingColorMode.NIGHT_INVERT -> Icons.Default.DarkMode
-                                        ReadingColorMode.SEPIA -> Icons.Default.MenuBook
-                                    },
-                                    contentDescription = "阅读色彩模式"
+                                    if (uiState.isLandscape) Icons.Default.StayCurrentPortrait else Icons.Default.StayCurrentLandscape,
+                                    contentDescription = if (uiState.isLandscape) "恢复竖屏" else "横屏模式",
+                                    tint = if (uiState.isLandscape) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+
+                            // 翻页排版模式切换：纵向连续 ⇄ 横向单页
+                            IconButton(onClick = { viewModel.toggleLayoutMode() }) {
+                                Icon(
+                                    if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) Icons.Default.SwapHoriz else Icons.Default.ViewAgenda,
+                                    contentDescription = if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "切换横向翻页" else "切换纵向瀑布流",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            // 更多菜单
+                            Box {
+                                IconButton(onClick = { isMenuOpen = true }) {
+                                    Icon(
+                                        Icons.Default.MoreVert,
+                                        contentDescription = "更多设置"
+                                    )
+                                }
+
+                                DropdownMenu(
+                                    expanded = isMenuOpen,
+                                    onDismissRequest = { isMenuOpen = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (uiState.isFullscreen) "退出全屏模式" else "全屏模式") },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (uiState.isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            isMenuOpen = false
+                                            viewModel.toggleFullscreen()
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = { Text(if (uiState.isLandscape) "切换为竖屏" else "切换为横屏") },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (uiState.isLandscape) Icons.Default.StayCurrentPortrait else Icons.Default.StayCurrentLandscape,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            isMenuOpen = false
+                                            viewModel.toggleLandscape()
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "排版: 横向左右翻页" else "排版: 纵向连续瀑布流")
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) Icons.Default.SwapHoriz else Icons.Default.ViewAgenda,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            isMenuOpen = false
+                                            viewModel.toggleLayoutMode()
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            val colorName = when (uiState.colorMode) {
+                                                ReadingColorMode.NORMAL -> "色彩: 常规白底"
+                                                ReadingColorMode.NIGHT_INVERT -> "色彩: 纯黑反色"
+                                                ReadingColorMode.SEPIA -> "色彩: 暖色羊皮纸"
+                                            }
+                                            Text(colorName)
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                when (uiState.colorMode) {
+                                                    ReadingColorMode.NORMAL -> Icons.Default.LightMode
+                                                    ReadingColorMode.NIGHT_INVERT -> Icons.Default.DarkMode
+                                                    ReadingColorMode.SEPIA -> Icons.AutoMirrored.Filled.MenuBook
+                                                },
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            isMenuOpen = false
+                                            val nextMode = when (uiState.colorMode) {
+                                                ReadingColorMode.NORMAL -> ReadingColorMode.NIGHT_INVERT
+                                                ReadingColorMode.NIGHT_INVERT -> ReadingColorMode.SEPIA
+                                                ReadingColorMode.SEPIA -> ReadingColorMode.NORMAL
+                                            }
+                                            viewModel.setColorMode(nextMode)
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = { Text(if (uiState.isAutoCropEnabled) "关闭白边裁切" else "开启智能白边裁切") },
+                                        leadingIcon = { Icon(Icons.Default.Crop, contentDescription = null) },
+                                        onClick = {
+                                            isMenuOpen = false
+                                            viewModel.toggleAutoCrop()
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = { Text("跳转到指定页") },
+                                        leadingIcon = { Icon(Icons.Default.Numbers, contentDescription = null) },
+                                        onClick = {
+                                            isMenuOpen = false
+                                            jumpTargetPageText = (uiState.currentPageIndex + 1).toString()
+                                            showJumpDialog = true
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = { Text("文档信息") },
+                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                        onClick = {
+                                            isMenuOpen = false
+                                            showDocInfoDialog = true
+                                        }
+                                    )
+                                }
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -296,7 +607,6 @@ fun ViewerScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp, vertical = 12.dp)
                     ) {
-                        val pageCount = docInfo?.pageCount ?: 1
                         val currentIdx = uiState.currentPageIndex
 
                         Row(
@@ -304,45 +614,174 @@ fun ViewerScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "${currentIdx + 1} / $pageCount",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            TextButton(
+                                onClick = {
+                                    jumpTargetPageText = (currentIdx + 1).toString()
+                                    showJumpDialog = true
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "${currentIdx + 1} / $pageCount",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
 
-                            if (uiState.isAutoCropEnabled) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (uiState.isAutoCropEnabled) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.padding(end = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Auto-Crop ON",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer
+                                    color = MaterialTheme.colorScheme.surfaceVariant
                                 ) {
                                     Text(
-                                        text = "Auto-Crop 2.0 ON",
+                                        text = if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "纵向连续" else "横向单页",
                                         fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                     )
                                 }
                             }
                         }
 
-                        Slider(
-                            value = currentIdx.toFloat(),
-                            onValueChange = { targetPage ->
-                                val page = targetPage.roundToInt().coerceIn(0, pageCount - 1)
-                                scope.launch {
-                                    listState.scrollToItem(page)
-                                }
-                            },
-                            valueRange = 0f..(pageCount - 1).toFloat(),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary
+                        if (pageCount > 1) {
+                            Slider(
+                                value = currentIdx.toFloat().coerceIn(0f, (pageCount - 1).toFloat()),
+                                onValueChange = { targetPage ->
+                                    val page = targetPage.roundToInt().coerceIn(0, pageCount - 1)
+                                    viewModel.onPageChanged(page)
+                                    scope.launch {
+                                        if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                                            listState.scrollToItem(page)
+                                        } else {
+                                            pagerState.scrollToPage(page)
+                                        }
+                                    }
+                                },
+                                valueRange = 0f..(pageCount - 1).toFloat(),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
         }
+    }
+
+    // 页面跳转弹窗
+    if (showJumpDialog) {
+        val totalPages = docInfo?.pageCount ?: 1
+        AlertDialog(
+            onDismissRequest = { showJumpDialog = false },
+            title = { Text("跳转页面") },
+            text = {
+                Column {
+                    Text(
+                        text = "请输入目标页码 (1 ~ $totalPages)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = jumpTargetPageText,
+                        onValueChange = { input ->
+                            jumpTargetPageText = input.filter { it.isDigit() }
+                        },
+                        label = { Text("页码") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Go
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onGo = {
+                                val target = jumpTargetPageText.toIntOrNull()
+                                if (target != null && target in 1..totalPages) {
+                                    val targetIndex = target - 1
+                                    viewModel.onPageChanged(targetIndex)
+                                    scope.launch {
+                                        if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                                            listState.scrollToItem(targetIndex)
+                                        } else {
+                                            pagerState.scrollToPage(targetIndex)
+                                        }
+                                    }
+                                    showJumpDialog = false
+                                }
+                            }
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val target = jumpTargetPageText.toIntOrNull()
+                        if (target != null && target in 1..totalPages) {
+                            val targetIndex = target - 1
+                            viewModel.onPageChanged(targetIndex)
+                            scope.launch {
+                                if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                                    listState.scrollToItem(targetIndex)
+                                } else {
+                                    pagerState.scrollToPage(targetIndex)
+                                }
+                            }
+                            showJumpDialog = false
+                        }
+                    }
+                ) {
+                    Text("跳转")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showJumpDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // 文档详情弹窗
+    if (showDocInfoDialog && docInfo != null) {
+        AlertDialog(
+            onDismissRequest = { showDocInfoDialog = false },
+            title = { Text("文档信息") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("名称: ${docInfo.title}", style = MaterialTheme.typography.bodyMedium)
+                    Text("总页数: ${docInfo.pageCount} 页", style = MaterialTheme.typography.bodyMedium)
+                    Text("当前阅读: 第 ${uiState.currentPageIndex + 1} 页", style = MaterialTheme.typography.bodyMedium)
+                    if (docInfo.fileSize > 0) {
+                        val sizeMb = String.format("%.2f MB", docInfo.fileSize / (1024f * 1024f))
+                        Text("文件大小: $sizeMb", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDocInfoDialog = false }) {
+                    Text("确定")
+                }
+            }
+        )
     }
 }
 
@@ -352,11 +791,14 @@ fun PdfPageView(
     isAutoCrop: Boolean,
     activeColumnBounds: PageCropper2.CropBounds?,
     colorFilter: ColorFilter?,
-    viewModel: ViewerViewModel
+    viewModel: ViewerViewModel,
+    layoutMode: ReadingLayoutMode,
+    onTap: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }
 
     var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var cropBounds by remember { mutableStateOf(PageCropper2.CropBounds.FULL) }
@@ -366,41 +808,107 @@ fun PdfPageView(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(pageIndex) {
+    // 当页面索引、屏幕分辨率或排版模式变化时重新渲染高质量位图
+    LaunchedEffect(pageIndex, screenWidthPx, screenHeightPx, layoutMode) {
         val info = viewModel.getPageInfo(pageIndex)
-        val renderW = (screenWidthPx * 1.5f).toInt()
         val aspectRatio = info.width.toFloat() / info.height.toFloat()
-        val renderH = (renderW / aspectRatio).roundToInt()
+
+        val renderW = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) {
+            val fitByWidthH = screenWidthPx / aspectRatio
+            if (fitByWidthH <= screenHeightPx) {
+                (screenWidthPx * 1.5f).toInt()
+            } else {
+                ((screenHeightPx * aspectRatio) * 1.5f).toInt()
+            }
+        } else {
+            (screenWidthPx * 1.5f).toInt()
+        }.coerceAtLeast(100)
+
+        val renderH = (renderW / aspectRatio).roundToInt().coerceAtLeast(100)
 
         pageBitmap = viewModel.renderPage(pageIndex, renderW, renderH)
         cropBounds = viewModel.getCropBounds(pageIndex)
     }
 
-    Box(
-        modifier = Modifier
+    val pageModifier = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .pointerInput(Unit) {
+    }
+
+    Box(
+        modifier = pageModifier
+            .pointerInput(pageIndex) {
                 detectTapGestures(
+                    onTap = { onTap() },
                     onDoubleTap = { offset ->
-                        // 双击智能定位分栏 (论文双栏一键聚焦)
-                        val tapX = (offset.x / size.width).coerceIn(0f, 1f)
-                        val tapY = (offset.y / size.height).coerceIn(0f, 1f)
-                        if (activeColumnBounds != null) {
-                            viewModel.clearColumnFocus()
+                        if (scale > 1.05f) {
+                            scale = 1f
+                            offsetX = 0f
+                            offsetY = 0f
                         } else {
-                            viewModel.focusColumnAt(pageIndex, tapX, tapY)
+                            val tapX = (offset.x / size.width).coerceIn(0f, 1f)
+                            val tapY = (offset.y / size.height).coerceIn(0f, 1f)
+                            if (activeColumnBounds != null) {
+                                viewModel.clearColumnFocus()
+                            } else {
+                                viewModel.focusColumnAt(pageIndex, tapX, tapY)
+                            }
                         }
                     }
                 )
             }
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 4f)
-                    if (scale > 1f) {
-                        offsetX += pan.x
-                        offsetY += pan.y
-                    } else {
+            .pointerInput(pageIndex) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var pastTouchSlop = false
+                    val touchSlop = viewConfiguration.touchSlop
+                    var panAccumulated = Offset.Zero
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val pointerCount = event.changes.size
+                        if (pointerCount >= 2) {
+                            // 双指捏合缩放：缩放范围 1x ~ 4x，并消费手势防止外层滑动冲突
+                            val zoomChange = event.calculateZoom()
+                            val panChange = event.calculatePan()
+                            scale = (scale * zoomChange).coerceIn(1f, 4f)
+                            if (scale > 1f) {
+                                val maxOffsetX = (size.width * (scale - 1f)) / 2f
+                                val maxOffsetY = (size.height * (scale - 1f)) / 2f
+                                offsetX = (offsetX + panChange.x).coerceIn(-maxOffsetX, maxOffsetX)
+                                offsetY = (offsetY + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                            } else {
+                                offsetX = 0f
+                                offsetY = 0f
+                            }
+                            event.changes.forEach { it.consume() }
+                        } else if (scale > 1.05f) {
+                            // 单指在已放大状态下拖动平移，消费手势
+                            val panChange = event.calculatePan()
+                            if (!pastTouchSlop) {
+                                panAccumulated += panChange
+                                if (panAccumulated.getDistance() > touchSlop) {
+                                    pastTouchSlop = true
+                                }
+                            }
+                            if (pastTouchSlop) {
+                                val maxOffsetX = (size.width * (scale - 1f)) / 2f
+                                val maxOffsetY = (size.height * (scale - 1f)) / 2f
+                                offsetX = (offsetX + panChange.x).coerceIn(-maxOffsetX, maxOffsetX)
+                                offsetY = (offsetY + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                event.changes.forEach {
+                                    if (it.positionChanged()) it.consume()
+                                }
+                            }
+                        }
+                        // scale == 1f 时单指滑动不消费，完全让渡给 LazyColumn / HorizontalPager 流畅滚动
+                    } while (event.changes.any { it.pressed })
+
+                    if (scale <= 1.05f) {
+                        scale = 1f
                         offsetX = 0f
                         offsetY = 0f
                     }
@@ -427,8 +935,7 @@ fun PdfPageView(
             val zoomFactor = if (isAutoCrop || activeColumnBounds != null) 1f / contentWidthRatio else 1f
 
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = (if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
                     .clip(RoundedCornerShape(4.dp))
                     .graphicsLayer {
                         if (isAutoCrop || activeColumnBounds != null) {
@@ -439,21 +946,20 @@ fun PdfPageView(
                             translationX = -centerShiftX * zoomFactor
                             translationY = -centerShiftY * zoomFactor
                         }
-                    }
+                    },
+                contentAlignment = Alignment.Center
             ) {
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = "Page ${pageIndex + 1}",
-                    contentScale = ContentScale.FillWidth,
+                    contentScale = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) ContentScale.Fit else ContentScale.FillWidth,
                     colorFilter = colorFilter,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
                 )
             }
         } else {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(480.dp)
+                modifier = (if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth().height(480.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center
             ) {

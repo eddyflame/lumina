@@ -70,8 +70,8 @@ org.lumina.reader
 
 ## 📚 详细设计文档
 
+- 🏛️ **系统架构与技术规范**：[简体中文 (doc/ARCHITECTURE.md)](ARCHITECTURE.md) | [English Edition (doc/ARCHITECTURE_EN.md)](ARCHITECTURE_EN.md)
 - 📘 [外观与暗黑主题设计白皮书 (doc/THEME_DESIGN.md)](THEME_DESIGN.md)：深入解析双模深色质感、M3 色彩槽映射与全沉浸适配；
-- 🏛️ [系统架构与技术规范 (doc/ARCHITECTURE.md)](ARCHITECTURE.md)：子系统架构、16KB Page 兼容性、内存防护与并发模型；
 - 🛠️ [开发者指南与贡献规范 (doc/DEVELOPMENT_GUIDE.md)](DEVELOPMENT_GUIDE.md)：开发环境配置、编译命令、编码规范与 PR 准则；
 - 📋 [下一代 PDF 重构规划书 (doc/NEXT_GEN_PDF_PLAN.md)](NEXT_GEN_PDF_PLAN.md)：产品演进背景与白边算法逆向解析。
 

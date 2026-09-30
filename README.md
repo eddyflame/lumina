@@ -73,8 +73,8 @@ org.lumina.reader
 
 ## 📚 Technical Documentation
 
+- 🏛️ **System Architecture & Specifications**: [English (doc/ARCHITECTURE_EN.md)](doc/ARCHITECTURE_EN.md) | [简体中文 (doc/ARCHITECTURE.md)](doc/ARCHITECTURE.md)
 - 📘 [Appearance & Dark Theme Design Whitepaper (doc/THEME_DESIGN.md)](doc/THEME_DESIGN.md): Detailed analysis of dual dark styles, M3 color token mapping, and immersive status bar adaptation.
-- 🏛️ [System Architecture & Specifications (doc/ARCHITECTURE.md)](doc/ARCHITECTURE.md): Subsystem breakdown, 16KB page size safety, concurrency model, and SAF pipe mechanics.
 - 🛠️ [Developer Guide & Contribution Norms (doc/DEVELOPMENT_GUIDE.md)](doc/DEVELOPMENT_GUIDE.md): Environment setup, Gradle commands, coding standards, and Conventional Commits guidelines.
 - 📋 [Next-Gen PDF Evolution Plan (doc/NEXT_GEN_PDF_PLAN.md)](doc/NEXT_GEN_PDF_PLAN.md): Algorithm reverse-engineering background and feature roadmap.
 

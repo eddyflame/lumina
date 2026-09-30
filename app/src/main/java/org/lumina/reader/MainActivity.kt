@@ -1,6 +1,7 @@
 package org.lumina.reader
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import org.lumina.reader.ui.shelf.ShelfScreen
 import org.lumina.reader.ui.theme.LuminaTheme
 import org.lumina.reader.ui.viewer.ViewerScreen
@@ -28,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val themeSettings by viewerViewModel.themeSettings.collectAsState()
+            val viewerUiState by viewerViewModel.uiState.collectAsState()
 
             LuminaTheme(
                 themeMode = themeSettings.themeMode,
@@ -36,9 +40,25 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var currentDocumentUri by remember { mutableStateOf<Uri?>(null) }
 
-                    // 预测性返回拦截
+                    // 预测性返回拦截：优先关闭大纲/退出全屏，最后退出阅读器
                     BackHandler(enabled = currentDocumentUri != null) {
-                        currentDocumentUri = null
+                        if (viewerUiState.isOutlineDrawerOpen) {
+                            viewerViewModel.setOutlineDrawerOpen(false)
+                        } else if (viewerUiState.isFullscreen) {
+                            viewerViewModel.setFullscreen(false)
+                        } else {
+                            currentDocumentUri = null
+                        }
+                    }
+
+                    // 退出阅读器回到书架时，恢复系统状态栏与屏幕方向
+                    LaunchedEffect(currentDocumentUri) {
+                        if (currentDocumentUri == null) {
+                            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                            val window = this@MainActivity.window
+                            val controller = WindowCompat.getInsetsController(window, window.decorView)
+                            controller.show(WindowInsetsCompat.Type.systemBars())
+                        }
                     }
 
                     // 监听外部应用 Intent 传入的 PDF 文件 (例如微信、邮件、第三方文件管理器)
@@ -52,7 +72,11 @@ class MainActivity : ComponentActivity() {
                     if (currentDocumentUri != null) {
                         ViewerScreen(
                             viewModel = viewerViewModel,
-                            onBackToShelf = { currentDocumentUri = null }
+                            onBackToShelf = {
+                                viewerViewModel.setFullscreen(false)
+                                viewerViewModel.setLandscape(false)
+                                currentDocumentUri = null
+                            }
                         )
                     } else {
                         ShelfScreen(
