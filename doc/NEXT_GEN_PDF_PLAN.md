@@ -168,3 +168,15 @@ document-viewer/
   - **论文双栏智能聚焦**：双击页面任意栏目自动计算并全屏填充该分栏，双击退出。
   - **Android 14~16 预测性返回与全屏边到边深度适配**。
 
+- **阶段六 (Phase 6)：文档注释系统与页面组织编辑工作台 [已完成]**
+  - **PDF 注释核心领域模型与坐标转换管道**：
+    - 定义标准 `PdfAnnotation.Ink`、`Highlight`、`Note` 模型与归一化几何体系。
+    - 纯函数 `PageCoordinateTransformer` 实现本地画布像素、归一化坐标与 PDF 72 DPI 物理点的双向映射。
+    - 实现 `AnnotationCommand` 与 `UndoRedoManager` 撤销/重做栈。
+  - **表现层解耦与分层画布架构**：
+    - `ViewerScreen.kt` 从 1060 行拆分为独立组件（`ViewerTopBar`、`ViewerBottomBar`、`ViewerOutlineDrawer`、`ViewerDialogs`、`AnnotationToolbar`、`PdfPageView`）。
+    - `PdfPageView` 升级为四层分层视图，支持二阶贝塞尔手写曲线平滑、荧光笔正片叠底（Multiply BlendMode）与手势独占分流。
+  - **页面组织与编辑工作台 (`PageOrganizerScreen`)**：
+    - 独立全屏网格缩略图工作台，支持页面顺逆时针旋转 90°、前移/后移排序、删除页面与全局重置。
+    - 采用 `PageEditSpec` 虚拟页面规范驱动，实现零延迟即时视图重排与 `rotationZ` 渲染。
+
