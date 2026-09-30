@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
@@ -112,7 +113,7 @@ fun AnnotationToolbar(
                         )
 
                         ToolIconButton(
-                            icon = Icons.Default.AutoFixHigh,
+                            icon = Icons.AutoMirrored.Filled.Backspace,
                             label = "橡皮擦",
                             isSelected = activeTool == AnnotationTool.ERASER,
                             onClick = { onToolChange(AnnotationTool.ERASER) }
@@ -204,8 +205,8 @@ fun AnnotationToolbar(
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
-                                Icons.Default.DeleteOutline,
-                                contentDescription = "清除本页",
+                                Icons.Default.DeleteSweep,
+                                contentDescription = "清空本页",
                                 modifier = Modifier.size(18.dp)
                             )
                         }

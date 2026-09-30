@@ -46,6 +46,11 @@ interface PdfEngine {
     suspend fun getOutlines(): List<PdfOutlineItem>
 
     /**
+     * 热重载新的文件描述符（在原地保存覆写后调用，实现平滑原子切换，避免 UI 崩溃）
+     */
+    suspend fun reload(pfd: ParcelFileDescriptor): PdfDocumentInfo
+
+    /**
      * 关闭并释放底层资源
      */
     fun close()

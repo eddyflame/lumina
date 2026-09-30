@@ -90,7 +90,7 @@ sealed class PdfAnnotation {
         /**
          * 判定给定归一化触控点是否与该笔迹相交 (用于橡皮擦擦除判定)
          */
-        fun intersects(tapPoint: NormalizedPoint, threshold: Float = 0.02f): Boolean {
+        fun intersects(tapPoint: NormalizedPoint, threshold: Float = 0.05f): Boolean {
             // 先通过粗粒度包围盒快速排除
             if (tapPoint.x < boundingBox.left - threshold ||
                 tapPoint.x > boundingBox.right + threshold ||

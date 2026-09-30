@@ -93,11 +93,14 @@ object PageCropper2 {
         val rawRight = getRightBound(pixels, width, height, avgLum)
         val rawBottom = getBottomBound(pixels, width, height, avgLum)
 
-        // 应用自适应呼吸内边距，确保文字不会紧贴屏幕边缘
-        val left = (rawLeft - extraPaddingRatio).coerceIn(0f, 1f)
-        val top = (rawTop - extraPaddingRatio).coerceIn(0f, 1f)
-        val right = (rawRight + extraPaddingRatio).coerceIn(0f, 1f)
-        val bottom = (rawBottom + extraPaddingRatio).coerceIn(0f, 1f)
+        // 应用自适应呼吸内边距：垂直方向给予更宽裕的余量 (默认至少 3.5%)，防止文字顶部被裁削
+        val paddingX = extraPaddingRatio
+        val paddingY = if (extraPaddingRatio > 0f) max(extraPaddingRatio, 0.035f) else 0f
+
+        val left = (rawLeft - paddingX).coerceIn(0f, 1f)
+        val top = (rawTop - paddingY).coerceIn(0f, 1f)
+        val right = (rawRight + paddingX).coerceIn(0f, 1f)
+        val bottom = (rawBottom + paddingY).coerceIn(0f, 1f)
 
         // 安全检查：如果裁切后内容区异常偏小 (例如小于原图 30%)，回退到全图避免误裁
         return if (right - left < 0.3f || bottom - top < 0.3f) {
@@ -167,7 +170,8 @@ object PageCropper2 {
         subY: Int,
         subW: Int,
         subH: Int,
-        avgLum: Int
+        avgLum: Int,
+        threshold: Float = WHITE_THRESHOLD
     ): Boolean {
         var darkCount = 0
         for (y in 0 until subH) {
@@ -187,7 +191,7 @@ object PageCropper2 {
         }
         val total = max(1, subW * subH)
         val ratio = darkCount.toFloat() / total
-        return ratio < WHITE_THRESHOLD
+        return ratio < threshold && darkCount < 5
     }
 
     private fun getLeftBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
@@ -219,13 +223,15 @@ object PageCropper2 {
         while (y < maxScanH) {
             val isWhite = isRectWhite(
                 pixels, width, height,
-                LINE_MARGIN, y, width - 2 * LINE_MARGIN, H_LINE_SIZE, avgLum
+                LINE_MARGIN, y, width - 2 * LINE_MARGIN, H_LINE_SIZE, avgLum,
+                threshold = 0.0015f // 顶部横向扫描灵敏度更高，防止漏过首行文字/页眉
             )
             if (isWhite) {
                 whiteCount++
             } else {
                 if (whiteCount >= 1) {
-                    return max(0, y - H_LINE_SIZE).toFloat() / height
+                    // 回退 2 个步进周期，预留充分的顶部文字笔画上升部空间
+                    return max(0, y - 2 * H_LINE_SIZE).toFloat() / height
                 }
                 whiteCount = 0
             }
@@ -263,12 +269,14 @@ object PageCropper2 {
         while (y > height - maxScanH) {
             val isWhite = isRectWhite(
                 pixels, width, height,
-                LINE_MARGIN, y, width - 2 * LINE_MARGIN, H_LINE_SIZE, avgLum
+                LINE_MARGIN, y, width - 2 * LINE_MARGIN, H_LINE_SIZE, avgLum,
+                threshold = 0.0015f // 底部横向扫描灵敏度更高，防止漏过页脚/尾行
             )
             if (isWhite) {
                 whiteCount++
             } else {
                 if (whiteCount >= 1) {
+                    // 底部多扩展保留余量，防止下伸部笔画被截断
                     return min(height, y + 2 * H_LINE_SIZE).toFloat() / height
                 }
                 whiteCount = 0

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -106,6 +107,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     val recentDocuments: StateFlow<List<RecentDocument>> = repository.recentDocuments
     val themeSettings: StateFlow<ThemeSettings> = themePreferences.themeSettings
+    val triggerSaveAsEvent = Channel<String>(Channel.BUFFERED)
 
     fun setThemeMode(mode: AppThemeMode) {
         themePreferences.setThemeMode(mode)
@@ -393,26 +395,44 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 )
                 undoRedoManager.clear()
                 val initialSpecs = (0 until newInfo.pageCount).map { PageEditSpec(it, 0) }
+                val safePageIndex = _uiState.value.currentPageIndex.coerceIn(0, (newInfo.pageCount - 1).coerceAtLeast(0))
                 _uiState.update {
                     it.copy(
                         isSaving = false,
                         documentInfo = newInfo,
                         annotations = emptyMap(),
                         pageSpecs = initialSpecs,
-                        currentPageIndex = 0,
+                        currentPageIndex = safePageIndex,
                         saveUserMessage = "文档保存成功"
                     )
                 }
                 onSuccess?.invoke()
-            } catch (e: Exception) {
-                val msg = e.localizedMessage ?: "保存失败"
-                _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        saveUserMessage = msg
-                    )
+            } catch (t: Throwable) {
+                val isPermissionIssue = t is SecurityException ||
+                    (t.message?.contains("只读", ignoreCase = true) == true) ||
+                    (t.message?.contains("permission", ignoreCase = true) == true)
+
+                if (isPermissionIssue) {
+                    val defaultName = (_uiState.value.documentInfo?.title ?: "Document").let {
+                        if (it.endsWith(".pdf", ignoreCase = true)) it else "$it.pdf"
+                    }
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            saveUserMessage = "原文档只读，已自动启动【另存为】"
+                        )
+                    }
+                    triggerSaveAsEvent.send(defaultName)
+                } else {
+                    val msg = t.localizedMessage ?: "保存失败"
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            saveUserMessage = msg
+                        )
+                    }
+                    onError?.invoke(msg)
                 }
-                onError?.invoke(msg)
             }
         }
     }
@@ -440,8 +460,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
                 onSuccess?.invoke()
-            } catch (e: Exception) {
-                val msg = e.localizedMessage ?: "另存为失败"
+            } catch (t: Throwable) {
+                val msg = t.localizedMessage ?: "另存为失败"
                 _uiState.update {
                     it.copy(
                         isSaving = false,

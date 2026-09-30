@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import org.lumina.reader.core.annotation.AnnotationTool
 import org.lumina.reader.core.model.PageEditSpec
@@ -69,6 +70,13 @@ fun ViewerScreen(
     ) { targetUri ->
         if (targetUri != null) {
             viewModel.exportDocument(targetUri)
+        }
+    }
+
+    // 监听只读回退或另存为事件，自动调起 SAF 保存选择器
+    LaunchedEffect(Unit) {
+        viewModel.triggerSaveAsEvent.receiveAsFlow().collect { suggestedName ->
+            saveAsLauncher.launch(suggestedName)
         }
     }
 
@@ -285,16 +293,18 @@ fun ViewerScreen(
             } else {
                 when (uiState.layoutMode) {
                     ReadingLayoutMode.CONTINUOUS_VERTICAL -> {
-                        // 连续纵向瀑布流阅读
+                        // 连续纵向瀑布流阅读：注释模式下禁用 LazyColumn 拦截滚动，保障单指画线不被中断断触
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(vertical = 16.dp)
+                            userScrollEnabled = uiState.annotationTool == AnnotationTool.NONE,
+                            contentPadding = PaddingValues(0.dp)
                         ) {
                             items(pageCount) { virtualIndex ->
                                 val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
                                 PdfPageView(
                                     pageIndex = spec.originalPageIndex,
+                                    pageCount = pageCount,
                                     rotationDegrees = spec.normalizedRotation,
                                     isAutoCrop = uiState.isAutoCropEnabled,
                                     activeColumnBounds = uiState.activeColumnBounds,
@@ -333,6 +343,7 @@ fun ViewerScreen(
                             ) {
                                 PdfPageView(
                                     pageIndex = spec.originalPageIndex,
+                                    pageCount = pageCount,
                                     rotationDegrees = spec.normalizedRotation,
                                     isAutoCrop = uiState.isAutoCropEnabled,
                                     activeColumnBounds = uiState.activeColumnBounds,
