@@ -85,8 +85,8 @@ class PageCropper2Test {
     }
 
     /**
-     * 测试边缘全白、内容仅在右下角的页面：验证恢复后的 fallback 逻辑能正确裁切大段左侧/顶部白边。
-     * 例如论文封面只有底部一小段标题。
+     * 测试边缘无内容、偏置在右下角的页面：
+     * 验证当左侧/顶部无内容超出 1/3 边界时安全保留 0f 原点，右侧/底部紧贴内容边界。
      */
     @Test
     fun testEdgeAllWhiteWithBottomRightContent() {
@@ -104,13 +104,12 @@ class PageCropper2Test {
         val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
         println("Edge-all-white bounds: $bounds")
 
-        // 左边界应检测到大段白边并裁切到内容附近 (250/400 = 0.625)
-        assertTrue("Left bound should be significantly > 0 for right-only content", bounds.left > 0.4f)
-        // 顶部边界应裁切到内容附近 (400/600 ≈ 0.667)
-        assertTrue("Top bound should be significantly > 0 for bottom-only content", bounds.top > 0.4f)
-        // 右边界和底部边界应接近内容右下角
-        assertTrue("Right bound should be close to 1.0", bounds.right > 0.9f)
-        assertTrue("Bottom bound should be close to 1.0", bounds.bottom > 0.9f)
+        // 超过 1/3 安全扫描范围时，左侧与顶部安全保持 0f，防止误裁正文
+        assertEquals(0f, bounds.left, 0.05f)
+        assertEquals(0f, bounds.top, 0.05f)
+        // 右边界和底部边界应接近内容右下角 (380/400 = 0.95, 580/600 = 0.967)
+        assertTrue("Right bound should be near content right", bounds.right in 0.90f..1.0f)
+        assertTrue("Bottom bound should be near content bottom", bounds.bottom in 0.90f..1.0f)
     }
 
     /**

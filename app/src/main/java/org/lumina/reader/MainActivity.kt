@@ -23,23 +23,29 @@ import org.lumina.reader.ui.viewer.ViewerViewModel
 class MainActivity : ComponentActivity() {
 
     private val viewerViewModel: ViewerViewModel by viewModels()
+    private val currentDocumentUriState = mutableStateOf<Uri?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 启用 Android 15/16 推荐的强制沉浸式全屏布局 (Edge-to-Edge)
         enableEdgeToEdge()
 
+        // 处理冷启动时外部应用传入的 PDF Intent
+        handleIncomingIntent(intent) { uri ->
+            currentDocumentUriState.value = uri
+            viewerViewModel.openDocument(uri)
+        }
+
         setContent {
             val themeSettings by viewerViewModel.themeSettings.collectAsState()
             val viewerUiState by viewerViewModel.uiState.collectAsState()
+            var currentDocumentUri by currentDocumentUriState
 
             LuminaTheme(
                 themeMode = themeSettings.themeMode,
                 darkThemeStyle = themeSettings.darkThemeStyle
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    var currentDocumentUri by remember { mutableStateOf<Uri?>(null) }
-
                     // 预测性返回拦截：优先关闭大纲/退出全屏，最后退出阅读器
                     BackHandler(enabled = currentDocumentUri != null) {
                         if (viewerUiState.isOutlineDrawerOpen) {
@@ -58,14 +64,6 @@ class MainActivity : ComponentActivity() {
                             val window = this@MainActivity.window
                             val controller = WindowCompat.getInsetsController(window, window.decorView)
                             controller.show(WindowInsetsCompat.Type.systemBars())
-                        }
-                    }
-
-                    // 监听外部应用 Intent 传入的 PDF 文件 (例如微信、邮件、第三方文件管理器)
-                    LaunchedEffect(intent) {
-                        handleIncomingIntent(intent) { uri ->
-                            currentDocumentUri = uri
-                            viewerViewModel.openDocument(uri)
                         }
                     }
 
@@ -95,6 +93,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIncomingIntent(intent) { uri ->
+            currentDocumentUriState.value = uri
             viewerViewModel.openDocument(uri)
         }
     }
