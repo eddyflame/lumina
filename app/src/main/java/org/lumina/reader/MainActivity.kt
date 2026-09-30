@@ -73,8 +73,7 @@ class MainActivity : ComponentActivity() {
                         ViewerScreen(
                             viewModel = viewerViewModel,
                             onBackToShelf = {
-                                viewerViewModel.setFullscreen(false)
-                                viewerViewModel.setLandscape(false)
+                                viewerViewModel.resetViewerModes()
                                 currentDocumentUri = null
                             }
                         )

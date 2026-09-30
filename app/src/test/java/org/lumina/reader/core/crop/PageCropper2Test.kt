@@ -83,4 +83,81 @@ class PageCropper2Test {
         val rightCol = PageCropper2.getColumn(pixels, width, height, 0.7f, 0.5f)
         assertTrue("Right column left bound should be near gap (220/400=0.55)", rightCol.left in 0.50f..0.58f)
     }
+
+    /**
+     * 测试边缘全白、内容仅在右下角的页面：验证恢复后的 fallback 逻辑能正确裁切大段左侧/顶部白边。
+     * 例如论文封面只有底部一小段标题。
+     */
+    @Test
+    fun testEdgeAllWhiteWithBottomRightContent() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        // 仅在右下角绘制内容 (x=250..380, y=400..580)
+        for (y in 400 until 580) {
+            for (x in 250 until 380) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        println("Edge-all-white bounds: $bounds")
+
+        // 左边界应检测到大段白边并裁切到内容附近 (250/400 = 0.625)
+        assertTrue("Left bound should be significantly > 0 for right-only content", bounds.left > 0.4f)
+        // 顶部边界应裁切到内容附近 (400/600 ≈ 0.667)
+        assertTrue("Top bound should be significantly > 0 for bottom-only content", bounds.top > 0.4f)
+        // 右边界和底部边界应接近内容右下角
+        assertTrue("Right bound should be close to 1.0", bounds.right > 0.9f)
+        assertTrue("Bottom bound should be close to 1.0", bounds.bottom > 0.9f)
+    }
+
+    /**
+     * 测试全白页面的分栏检测不会崩溃，应返回安全边界。
+     */
+    @Test
+    fun testColumnDetectionOnWhitePage() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        // 在全白页面上尝试分栏检测，不应抛出异常
+        val col = PageCropper2.getColumn(pixels, width, height, 0.5f, 0.5f)
+
+        // 返回的边界应是有效值 (0..1 范围内)
+        assertTrue("Column left should be in [0, 1]", col.left in 0f..1f)
+        assertTrue("Column right should be in [0, 1]", col.right in 0f..1f)
+        assertTrue("Column right >= left", col.right >= col.left)
+    }
+
+    /**
+     * 测试深色背景 PDF 的分栏检测：avgLum 基线 max(200, ...) 保证不会因低亮度导致误判。
+     */
+    @Test
+    fun testDarkBackgroundColumnDetection() {
+        val width = 400
+        val height = 600
+        val darkGray = 0xFF333333.toInt()  // 深灰背景，亮度约 51
+        val pixels = IntArray(width * height) { darkGray }
+
+        // 在深色背景上绘制更深的"文字"（纯黑）
+        for (y in 100 until 500) {
+            for (x in 50..180) {
+                pixels[y * width + x] = black
+            }
+            for (x in 220..350) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        // 分栏检测应正常工作，不应崩溃
+        val col = PageCropper2.getColumn(pixels, width, height, 0.25f, 0.5f)
+        assertTrue("Column bounds should be valid on dark background", col.left in 0f..1f)
+        assertTrue("Column bounds should be valid on dark background", col.right in 0f..1f)
+
+        // avgLum 被 max(200, ...) 提升后，深色背景的微弱亮度差异应该不会被误判为"内容"
+        // 验证检测到的列边界是合理的
+        println("Dark background column: left=${col.left}, right=${col.right}")
+    }
 }

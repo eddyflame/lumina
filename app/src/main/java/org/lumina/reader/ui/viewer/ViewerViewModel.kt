@@ -132,7 +132,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             val nextFullscreen = !it.isFullscreen
             it.copy(
                 isFullscreen = nextFullscreen,
-                isOverlayVisible = if (nextFullscreen) false else it.isOverlayVisible
+                isOverlayVisible = !nextFullscreen
             )
         }
     }
@@ -141,7 +141,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update {
             it.copy(
                 isFullscreen = fullscreen,
-                isOverlayVisible = if (fullscreen) false else it.isOverlayVisible
+                isOverlayVisible = !fullscreen
             )
         }
     }
@@ -154,10 +154,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(isLandscape = landscape) }
     }
 
-    fun jumpToPage(pageIndex: Int) {
-        val total = _uiState.value.documentInfo?.pageCount ?: 1
-        val safePage = pageIndex.coerceIn(0, total - 1)
-        onPageChanged(safePage)
+    /** 退出阅读器时一次性重置全屏与横屏状态，避免多次 state update */
+    fun resetViewerModes() {
+        _uiState.update {
+            it.copy(isFullscreen = false, isLandscape = false, isOverlayVisible = true)
+        }
     }
 
     fun onPageChanged(index: Int) {
