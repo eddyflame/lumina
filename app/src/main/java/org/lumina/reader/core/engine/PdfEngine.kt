@@ -51,6 +51,11 @@ interface PdfEngine {
     suspend fun reload(pfd: ParcelFileDescriptor): PdfDocumentInfo
 
     /**
+     * 清理内存中缓存的位图与页面信息 (在保存/导出大文档前调用，释放主内存避免 OOM)
+     */
+    fun clearMemoryCache() {}
+
+    /**
      * 关闭并释放底层资源
      */
     fun close()

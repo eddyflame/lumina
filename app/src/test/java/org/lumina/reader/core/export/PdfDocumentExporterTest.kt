@@ -156,4 +156,43 @@ class PdfDocumentExporterTest {
             verifyDoc.close()
         }
     }
+
+    @Test
+    fun testExportPdfWithCustomTempDirAndScratchFile() = runBlocking {
+        val samplePdfBytes = createSamplePdf(5)
+        val tempFolder = java.io.File(System.getProperty("java.io.tmpdir"), "lumina_test_scratch_${System.currentTimeMillis()}")
+        tempFolder.mkdirs()
+
+        try {
+            val pageSpecs = listOf(
+                PageEditSpec(originalPageIndex = 4, rotationDegrees = 180),
+                PageEditSpec(originalPageIndex = 2, rotationDegrees = 0),
+                PageEditSpec(originalPageIndex = 0, rotationDegrees = 90)
+            )
+
+            val output = ByteArrayOutputStream()
+            PdfDocumentExporter.exportPdf(
+                inputStream = ByteArrayInputStream(samplePdfBytes),
+                outputStream = output,
+                annotations = emptyMap(),
+                pageSpecs = pageSpecs,
+                customTempDir = tempFolder
+            )
+
+            val exportedBytes = output.toByteArray()
+            assertTrue(exportedBytes.isNotEmpty())
+
+            val verifyDoc = PDDocument.load(ByteArrayInputStream(exportedBytes))
+            try {
+                assertEquals(3, verifyDoc.numberOfPages)
+                assertEquals(180, verifyDoc.getPage(0).rotation)
+                assertEquals(0, verifyDoc.getPage(1).rotation)
+                assertEquals(90, verifyDoc.getPage(2).rotation)
+            } finally {
+                verifyDoc.close()
+            }
+        } finally {
+            tempFolder.deleteRecursively()
+        }
+    }
 }
