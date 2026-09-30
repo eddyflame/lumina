@@ -34,6 +34,7 @@ fun ViewerTopBar(
     onToggleLandscape: () -> Unit,
     onToggleLayoutMode: () -> Unit,
     onSetColorMode: (ReadingColorMode) -> Unit,
+    onOpenPageOrganizer: () -> Unit,
     onShowJumpDialog: () -> Unit,
     onShowDocInfoDialog: () -> Unit,
     modifier: Modifier = Modifier
@@ -238,6 +239,21 @@ fun ViewerTopBar(
                         )
 
                         HorizontalDivider()
+
+                        DropdownMenuItem(
+                            text = { Text("页面组织与编辑") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.DashboardCustomize,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            onClick = {
+                                isMenuOpen = false
+                                onOpenPageOrganizer()
+                            }
+                        )
 
                         DropdownMenuItem(
                             text = { Text("跳转到指定页") },

@@ -57,3 +57,13 @@ enum class ReadingLayoutMode {
     /** 单页横向左右翻页 */
     SINGLE_PAGE_HORIZONTAL
 }
+
+/**
+ * 页面虚拟编辑规范 (支持零延迟旋转、排序与删减)
+ */
+data class PageEditSpec(
+    val originalPageIndex: Int,
+    val rotationDegrees: Int = 0 // 0, 90, 180, 270
+) {
+    val normalizedRotation: Int get() = ((rotationDegrees % 360) + 360) % 360
+}
