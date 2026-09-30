@@ -5,6 +5,7 @@ import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -183,25 +184,34 @@ fun ViewerScreen(
 
     val backgroundColor = when (uiState.colorMode) {
         ReadingColorMode.NORMAL -> MaterialTheme.colorScheme.background
-        ReadingColorMode.NIGHT_INVERT -> NightBackground
-        ReadingColorMode.SEPIA -> SepiaBackground
+        ReadingColorMode.SOFT_DARK -> SoftDarkBackground
+        ReadingColorMode.AMOLED_DARK -> NightBackground
     }
 
     val pageColorFilter = when (uiState.colorMode) {
         ReadingColorMode.NORMAL -> null
-        ReadingColorMode.NIGHT_INVERT -> ColorFilter.colorMatrix(
+        ReadingColorMode.SOFT_DARK -> ColorFilter.colorMatrix(
+            // 柔和暗色：白底(255)->#1E222B(约30,34,43)，黑字(0)->#D6DCE5(约214,220,229)
+            // 消除纯黑纯白的刺眼眩光，大幅提高暗光环境下的文字可读性
             ColorMatrix(
                 floatArrayOf(
-                    -1f,  0f,  0f, 0f, 255f,
-                     0f, -1f,  0f, 0f, 255f,
-                     0f,  0f, -1f, 0f, 255f,
-                     0f,  0f,  0f, 1f,   0f
+                    -0.722f,  0f,      0f,      0f, 214f,
+                     0f,     -0.729f,  0f,      0f, 220f,
+                     0f,      0f,     -0.729f,  0f, 229f,
+                     0f,      0f,      0f,      1f,   0f
                 )
             )
         )
-        ReadingColorMode.SEPIA -> ColorFilter.tint(
-            Color(0xFF8D6E63),
-            androidx.compose.ui.graphics.BlendMode.Multiply
+        ReadingColorMode.AMOLED_DARK -> ColorFilter.colorMatrix(
+            // 极暗纯黑：纯黑底色，高光字压制到柔和 204，消除刺目反差
+            ColorMatrix(
+                floatArrayOf(
+                    -0.80f,  0f,     0f,     0f, 204f,
+                     0f,    -0.80f,  0f,     0f, 204f,
+                     0f,     0f,    -0.80f,  0f, 204f,
+                     0f,     0f,     0f,     1f,   0f
+                )
+            )
         )
     }
 
@@ -426,66 +436,108 @@ fun ViewerScreen(
                             }
                         },
                         actions = {
-                            // 目录大纲抽屉唤起按钮 (修复点击无反应)
-                            IconButton(onClick = {
-                                scope.launch {
-                                    if (drawerState.isOpen) drawerState.close() else drawerState.open()
+                            // 1. 目录大纲抽屉唤起按钮
+                            ViewerActionButton(
+                                icon = Icons.AutoMirrored.Filled.FormatListBulleted,
+                                contentDescription = "目录大纲",
+                                isActive = drawerState.isOpen || uiState.isOutlineDrawerOpen,
+                                onClick = {
+                                    scope.launch {
+                                        if (drawerState.isOpen) drawerState.close() else drawerState.open()
+                                    }
                                 }
-                            }) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.FormatListBulleted,
-                                    contentDescription = "目录大纲"
-                                )
-                            }
+                            )
 
-                            // 全屏沉浸模式切换 (新增全屏功能)
-                            IconButton(onClick = { viewModel.toggleFullscreen() }) {
-                                Icon(
-                                    if (uiState.isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                    contentDescription = if (uiState.isFullscreen) "退出全屏" else "全屏模式",
-                                    tint = if (uiState.isFullscreen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            // 2. 智能切白边 (点击开启变成蓝色并带有背景圆角底，关闭恢复原色)
+                            ViewerActionButton(
+                                icon = Icons.Default.Crop,
+                                contentDescription = if (uiState.isAutoCropEnabled) "已开启智能裁切" else "已关闭智能裁切",
+                                isActive = uiState.isAutoCropEnabled,
+                                onClick = { viewModel.toggleAutoCrop() }
+                            )
 
-                            // 屏幕横屏模式切换 (新增横屏功能)
-                            IconButton(onClick = { viewModel.toggleLandscape() }) {
-                                Icon(
-                                    if (uiState.isLandscape) Icons.Default.StayCurrentPortrait else Icons.Default.StayCurrentLandscape,
-                                    contentDescription = if (uiState.isLandscape) "恢复竖屏" else "横屏模式",
-                                    tint = if (uiState.isLandscape) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            // 3. 护眼暗色模式 (点击开启变成蓝色，关闭恢复原色)
+                            ViewerActionButton(
+                                icon = if (uiState.colorMode != ReadingColorMode.NORMAL) Icons.Default.DarkMode else Icons.Default.LightMode,
+                                contentDescription = if (uiState.colorMode != ReadingColorMode.NORMAL) "退出暗色模式" else "护眼暗色模式",
+                                isActive = uiState.colorMode != ReadingColorMode.NORMAL,
+                                onClick = {
+                                    val next = if (uiState.colorMode == ReadingColorMode.NORMAL) {
+                                        ReadingColorMode.SOFT_DARK
+                                    } else {
+                                        ReadingColorMode.NORMAL
+                                    }
+                                    viewModel.setColorMode(next)
+                                }
+                            )
 
-                            // 翻页排版模式切换：纵向连续 ⇄ 横向单页
-                            IconButton(onClick = { viewModel.toggleLayoutMode() }) {
-                                Icon(
-                                    if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) Icons.Default.SwapHoriz else Icons.Default.ViewAgenda,
-                                    contentDescription = if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "切换横向翻页" else "切换纵向瀑布流",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            // 4. 全屏沉浸模式 (点击开启变成蓝色，关闭恢复原色)
+                            ViewerActionButton(
+                                icon = if (uiState.isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                contentDescription = if (uiState.isFullscreen) "退出全屏" else "全屏模式",
+                                isActive = uiState.isFullscreen,
+                                onClick = { viewModel.toggleFullscreen() }
+                            )
 
-                            // 更多菜单
+                            // 5. 屏幕横屏模式 (点击开启变成蓝色，关闭恢复原色)
+                            ViewerActionButton(
+                                icon = if (uiState.isLandscape) Icons.Default.StayCurrentPortrait else Icons.Default.StayCurrentLandscape,
+                                contentDescription = if (uiState.isLandscape) "恢复竖屏" else "横屏模式",
+                                isActive = uiState.isLandscape,
+                                onClick = { viewModel.toggleLandscape() }
+                            )
+
+                            // 6. 翻页排版切换 (横向单页翻页时变蓝，纵向瀑布流时恢复原色)
+                            ViewerActionButton(
+                                icon = if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) Icons.Default.SwapHoriz else Icons.Default.ViewAgenda,
+                                contentDescription = if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "切换横向翻页" else "切换纵向瀑布流",
+                                isActive = uiState.layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL,
+                                onClick = { viewModel.toggleLayoutMode() }
+                            )
+
+                            // 7. 更多菜单
                             Box {
-                                IconButton(onClick = { isMenuOpen = true }) {
-                                    Icon(
-                                        Icons.Default.MoreVert,
-                                        contentDescription = "更多设置"
-                                    )
-                                }
+                                ViewerActionButton(
+                                    icon = Icons.Default.MoreVert,
+                                    contentDescription = "更多设置",
+                                    isActive = isMenuOpen,
+                                    onClick = { isMenuOpen = true }
+                                )
 
                                 DropdownMenu(
                                     expanded = isMenuOpen,
                                     onDismissRequest = { isMenuOpen = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(if (uiState.isFullscreen) "退出全屏模式" else "全屏模式") },
+                                        text = { Text(if (uiState.isAutoCropEnabled) "智能白边裁切 (已开启)" else "智能白边裁切 (已关闭)") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Crop,
+                                                contentDescription = null,
+                                                tint = if (uiState.isAutoCropEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        },
+                                        trailingIcon = if (uiState.isAutoCropEnabled) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
+                                        onClick = {
+                                            isMenuOpen = false
+                                            viewModel.toggleAutoCrop()
+                                        }
+                                    )
+
+                                    DropdownMenuItem(
+                                        text = { Text(if (uiState.isFullscreen) "退出全屏模式" else "全屏沉浸模式") },
                                         leadingIcon = {
                                             Icon(
                                                 if (uiState.isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                tint = if (uiState.isFullscreen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         },
+                                        trailingIcon = if (uiState.isFullscreen) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
                                         onClick = {
                                             isMenuOpen = false
                                             viewModel.toggleFullscreen()
@@ -493,13 +545,17 @@ fun ViewerScreen(
                                     )
 
                                     DropdownMenuItem(
-                                        text = { Text(if (uiState.isLandscape) "切换为竖屏" else "切换为横屏") },
+                                        text = { Text(if (uiState.isLandscape) "恢复竖屏模式" else "切换横屏阅读") },
                                         leadingIcon = {
                                             Icon(
                                                 if (uiState.isLandscape) Icons.Default.StayCurrentPortrait else Icons.Default.StayCurrentLandscape,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                tint = if (uiState.isLandscape) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         },
+                                        trailingIcon = if (uiState.isLandscape) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
                                         onClick = {
                                             isMenuOpen = false
                                             viewModel.toggleLandscape()
@@ -508,58 +564,81 @@ fun ViewerScreen(
 
                                     DropdownMenuItem(
                                         text = {
-                                            Text(if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "排版: 横向左右翻页" else "排版: 纵向连续瀑布流")
+                                            Text(if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "排版: 横向单页翻页" else "排版: 纵向连续瀑布流")
                                         },
                                         leadingIcon = {
                                             Icon(
                                                 if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) Icons.Default.SwapHoriz else Icons.Default.ViewAgenda,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                tint = if (uiState.layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         },
+                                        trailingIcon = if (uiState.layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
                                         onClick = {
                                             isMenuOpen = false
                                             viewModel.toggleLayoutMode()
                                         }
                                     )
 
+                                    HorizontalDivider()
+
                                     DropdownMenuItem(
-                                        text = {
-                                            val colorName = when (uiState.colorMode) {
-                                                ReadingColorMode.NORMAL -> "色彩: 常规白底"
-                                                ReadingColorMode.NIGHT_INVERT -> "色彩: 纯黑反色"
-                                                ReadingColorMode.SEPIA -> "色彩: 暖色羊皮纸"
-                                            }
-                                            Text(colorName)
-                                        },
+                                        text = { Text("色彩: 常规白底") },
                                         leadingIcon = {
                                             Icon(
-                                                when (uiState.colorMode) {
-                                                    ReadingColorMode.NORMAL -> Icons.Default.LightMode
-                                                    ReadingColorMode.NIGHT_INVERT -> Icons.Default.DarkMode
-                                                    ReadingColorMode.SEPIA -> Icons.AutoMirrored.Filled.MenuBook
-                                                },
-                                                contentDescription = null
+                                                Icons.Default.LightMode,
+                                                contentDescription = null,
+                                                tint = if (uiState.colorMode == ReadingColorMode.NORMAL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         },
+                                        trailingIcon = if (uiState.colorMode == ReadingColorMode.NORMAL) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
                                         onClick = {
                                             isMenuOpen = false
-                                            val nextMode = when (uiState.colorMode) {
-                                                ReadingColorMode.NORMAL -> ReadingColorMode.NIGHT_INVERT
-                                                ReadingColorMode.NIGHT_INVERT -> ReadingColorMode.SEPIA
-                                                ReadingColorMode.SEPIA -> ReadingColorMode.NORMAL
-                                            }
-                                            viewModel.setColorMode(nextMode)
+                                            viewModel.setColorMode(ReadingColorMode.NORMAL)
                                         }
                                     )
 
                                     DropdownMenuItem(
-                                        text = { Text(if (uiState.isAutoCropEnabled) "关闭白边裁切" else "开启智能白边裁切") },
-                                        leadingIcon = { Icon(Icons.Default.Crop, contentDescription = null) },
+                                        text = { Text("色彩: 柔和深色 (舒适护眼)") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.DarkMode,
+                                                contentDescription = null,
+                                                tint = if (uiState.colorMode == ReadingColorMode.SOFT_DARK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        },
+                                        trailingIcon = if (uiState.colorMode == ReadingColorMode.SOFT_DARK) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
                                         onClick = {
                                             isMenuOpen = false
-                                            viewModel.toggleAutoCrop()
+                                            viewModel.setColorMode(ReadingColorMode.SOFT_DARK)
                                         }
                                     )
+
+                                    DropdownMenuItem(
+                                        text = { Text("色彩: 极暗纯黑 (AMOLED 省电)") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.DarkMode,
+                                                contentDescription = null,
+                                                tint = if (uiState.colorMode == ReadingColorMode.AMOLED_DARK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        },
+                                        trailingIcon = if (uiState.colorMode == ReadingColorMode.AMOLED_DARK) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                                        } else null,
+                                        onClick = {
+                                            isMenuOpen = false
+                                            viewModel.setColorMode(ReadingColorMode.AMOLED_DARK)
+                                        }
+                                    )
+
+                                    HorizontalDivider()
 
                                     DropdownMenuItem(
                                         text = { Text("跳转到指定页") },
@@ -970,5 +1049,48 @@ fun PdfPageView(
                 )
             }
         }
+    }
+}
+
+/**
+ * 阅读器顶部工具栏操作按钮
+ * 支持激活态视觉变化：开启时图标高亮为主题品牌蓝 (Primary)，带有柔和圆形半透明蓝色底色；
+ * 关闭时恢复低调的次要图标色，背景透明。支持平滑颜色过渡动画。
+ */
+@Composable
+private fun ViewerActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val activeColor = MaterialTheme.colorScheme.primary
+    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val activeBg = activeColor.copy(alpha = 0.16f)
+    val inactiveBg = Color.Transparent
+
+    val iconColor by animateColorAsState(
+        targetValue = if (isActive) activeColor else inactiveColor,
+        label = "viewer_icon_color"
+    )
+    val containerBg by animateColorAsState(
+        targetValue = if (isActive) activeBg else inactiveBg,
+        label = "viewer_btn_bg"
+    )
+
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(containerBg)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = iconColor,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }

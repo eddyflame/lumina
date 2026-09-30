@@ -42,10 +42,10 @@ data class PdfOutlineItem(
 enum class ReadingColorMode {
     /** 常规白底黑字 */
     NORMAL,
-    /** 夜间纯黑反色 (AMOLED 极致省电护眼) */
-    NIGHT_INVERT,
-    /** 柔和暖色羊皮纸 (日间舒适护眼) */
-    SEPIA
+    /** 柔和暗色 (炭灰深色护眼，低对比度防眩光，可读性极佳) */
+    SOFT_DARK,
+    /** 夜间纯黑 (AMOLED 极致省电，柔和抗眩光) */
+    AMOLED_DARK
 }
 
 /**
