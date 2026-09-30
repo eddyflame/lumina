@@ -1,6 +1,7 @@
 package org.lumina.reader.data.repository
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
@@ -26,6 +27,18 @@ class DocumentRepository(
     val recentDocuments: StateFlow<List<RecentDocument>> = historyDb.recentDocsFlow
 
     suspend fun openDocument(uri: Uri): PdfDocumentInfo {
+        // 对系统 SAF 选择器授予的 content:// URI 持久化权限，确保跨进程和重启后可继续从书架直接打开
+        if (uri.scheme == "content") {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+                // 部分第三方应用临时分享的 URI 不支持持久化授权，静默忽略
+            }
+        }
+
         val resolver = context.contentResolver
         val title = queryDocumentTitle(uri) ?: "Document.pdf"
 

@@ -55,6 +55,8 @@ class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
             withContext(Dispatchers.IO) {
                 val db = writableDatabase
                 val progress = if (pageCount > 0) (pageIndex + 1).toFloat() / pageCount.toFloat() else 0f
+                // 查询现有记录以保留置顶标记 (is_pinned)，避免 CONFLICT_REPLACE 导致置顶状态被重置为 0
+                val existingPinned = getDocument(uri)?.isPinned ?: false
                 val values = ContentValues().apply {
                     put(COL_URI, uri)
                     put(COL_TITLE, title)
@@ -62,6 +64,7 @@ class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
                     put(COL_LAST_PAGE, pageIndex)
                     put(COL_PROGRESS, progress.coerceIn(0f, 1f))
                     put(COL_TIME, System.currentTimeMillis())
+                    put(COL_PINNED, if (existingPinned) 1 else 0)
                 }
                 db.insertWithOnConflict(TABLE_HISTORY, null, values, SQLiteDatabase.CONFLICT_REPLACE)
             }

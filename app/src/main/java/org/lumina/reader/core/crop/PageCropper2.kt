@@ -209,7 +209,7 @@ object PageCropper2 {
             }
             x += V_LINE_SIZE
         }
-        return if (whiteCount > 0) max(0, x - V_LINE_SIZE).toFloat() / width else 0f
+        return 0f
     }
 
     private fun getTopBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
@@ -231,7 +231,7 @@ object PageCropper2 {
             }
             y += H_LINE_SIZE
         }
-        return if (whiteCount > 0) max(0, y - H_LINE_SIZE).toFloat() / height else 0f
+        return 0f
     }
 
     private fun getRightBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
@@ -253,7 +253,7 @@ object PageCropper2 {
             }
             x -= V_LINE_SIZE
         }
-        return if (whiteCount > 0) min(width, x + 2 * V_LINE_SIZE).toFloat() / width else 1f
+        return 1f
     }
 
     private fun getBottomBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
@@ -275,7 +275,7 @@ object PageCropper2 {
             }
             y -= H_LINE_SIZE
         }
-        return if (whiteCount > 0) min(height, y + 2 * H_LINE_SIZE).toFloat() / height else 1f
+        return 1f
     }
 
     private fun getLeftColumnBound(
