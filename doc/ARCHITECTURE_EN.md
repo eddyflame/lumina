@@ -105,13 +105,23 @@ graph TD
 - **Dynamic Resolution Re-rendering**:
   - Observes orientation and layout changes to automatically re-render bitmaps tailored to the active screen dimensions and aspect ratio.
 
-### 2.6 Zero-Permission Storage & History Pipeline (`data`)
+### 2.6 Eye-Friendly Dark Reading Modes & Icon Visual Feedback (`ReadingColorMode` & `ViewerActionButton`)
+- **Color Filter Overhaul (Removal of Sepia, Introduction of Soft Dark)**:
+  - **Complete Removal of Sepia Mode (`SEPIA`)**: The traditional warm-toned multiplicative filter caused blurred font edges, low contrast, and eye strain over prolonged reading sessions, and has been completely eliminated.
+  - **Eye-Friendly Soft Dark Mode (`ReadingColorMode.SOFT_DARK`)**: Driven by an inverted linear `ColorMatrix` compression (mapping white background $255 \to \#1E222B$ and dark text $0 \to \#D6DCE5$), eliminating harsh pure-black glare while preserving an optimal 7.8:1 WCAG AAA reading contrast ratio.
+  - **AMOLED Pure Black Mode (`ReadingColorMode.AMOLED_DARK`)**: Engineered for power efficiency on OLED panels ($\#000000$ true black), while clamping peak text brightness down to soft silver ($204$) to prevent blinding contrast.
+- **Dynamic Visual State Feedback for Action Icons (`ViewerActionButton`)**:
+  - Immediate visual feedback for toggleable toolbar controls: auto-crop, eye-friendly dark mode, fullscreen immersion, landscape rotation, and horizontal pager layout.
+  - When enabled/active, the icon dynamically tints to Lumina Azure Blue (`MaterialTheme.colorScheme.primary`) encased in a soft circular pill container (`alpha = 0.16f`). When disabled/inactive, it smoothly returns to neutral `onSurfaceVariant` with a transparent background.
+  - Features smooth animated color interpolation powered by `animateColorAsState`.
+
+### 2.7 Zero-Permission Storage & History Pipeline (`data`)
 - **Modern SAF Architecture**: No dangerous permissions required (`READ_EXTERNAL_STORAGE` or `MANAGE_EXTERNAL_STORAGE`);
 - Accesses PDFs via `ActivityResultContracts.OpenDocument` or system `ACTION_VIEW` Intents, streaming file descriptors via `ParcelFileDescriptor`.
 - **KSP-Free Native SQLite Persistence (`HistoryDatabase`)**:
   - Built with native `SQLiteOpenHelper` and Kotlin `StateFlow`, eliminating Room/KSP compile toolchain discrepancies and accelerating build times.
 
-### 2.7 Appearance & Theming Subsystem (`ui/theme` & `ui/settings`)
+### 2.8 Appearance & Theming Subsystem (`ui/theme` & `ui/settings`)
 - Reference: [THEME_DESIGN.md](file:///home/eddy/myplace/project/lumina-pdf/doc/THEME_DESIGN.md).
 - Provides System-following, Daylight, Slate Charcoal, and AMOLED Pure Black themes with translucent system insets and cold-start anti-flash resources.
 

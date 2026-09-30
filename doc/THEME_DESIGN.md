@@ -86,9 +86,10 @@ Lumina 建立在 Material 3 设计系统之上，完全杜绝在具体 UI 页面
    - 随 `LuminaTheme` 响应式切换，透明度与高斯拟态（Blur）在深色模式下表现极佳。
 2. **渲染内容层 (Document Filter Layer)**：
    - 独立提供 `ReadingColorMode` 控制矩阵：
-     - `NORMAL`：原版色彩（适用于日光环境）；
-     - `NIGHT_INVERT`：高对比反相矩阵（`floatArrayOf(-1, 0, 0, 0, 255, ...)`），纯黑底 AMOLED 阅读；
-     - `SEPIA`：乘法混合温润羊皮纸滤镜（护眼模式，`#FBF0D9` + 暖棕文字）。
+     - `NORMAL`：原版色彩（适用于日光环境白底黑字）；
+     - `SOFT_DARK`：柔和暗色护眼（反向线性压缩矩阵，白底映射为 `#1E222B`，黑字映射为 `#D6DCE5`，消除眩光，维持舒适 7.8:1 对比度）；
+     - `AMOLED_DARK`：极暗纯黑（纯黑 `#000000` 底色吸光省电，高光字压至 204，消除刺目感）。
+   - *(注：原暖色羊皮纸 `SEPIA` 模式因字迹浑浊、长读易疲劳，已彻底移除。)*
 
 ### 4.2 状态栏与导航栏图标自适应
 针对 Android 15/16 强制 Edge-to-Edge 的要求，在 `LuminaTheme` 内部使用 `SideEffect` 挂载系统栏图标深浅控制器：

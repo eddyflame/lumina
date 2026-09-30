@@ -47,12 +47,12 @@ val LuminaAmoledOnSurfaceVariant = Color(0xFFA1A1AA)
 // ==========================================
 // 3. PDF 阅读滤镜专用调色板
 // ==========================================
-// 羊皮纸护眼 (Parchment Sepia)
-val SepiaBackground = Color(0xFFFBF0D9)
-val SepiaSurface = Color(0xFFF4E4C1)
-val SepiaText = Color(0xFF4A3B32)
+// 柔和暗色护眼 (Soft Dark Slate - 舒适无眩光暗色阅读，高可读性)
+val SoftDarkBackground = Color(0xFF1E222B)
+val SoftDarkSurface = Color(0xFF282E3A)
+val SoftDarkText = Color(0xFFD6DCE5)
 
-// 纯黑反转 (AMOLED Night Invert)
+// 纯黑暗色 (AMOLED Dark - 极致省电)
 val NightBackground = Color(0xFF000000)
 val NightSurface = Color(0xFF121212)
-val NightText = Color(0xFFE2E8F0)
+val NightText = Color(0xFFCBD5E1)

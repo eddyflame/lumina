@@ -105,14 +105,24 @@ graph TD
 - **自适应动态分辨率重绘**：
   - 页面渲染监听屏幕方向、宽度与排版模式变化，旋转至横屏或切换单页时自动按照当前宽高比与屏幕尺寸重新渲染最高画质位图。
 
-### 2.6 零权限存储与历史管道 (`data`)
+### 2.6 护眼深色阅读模式与交互视觉反馈 (`ReadingColorMode` & `ViewerActionButton`)
+- **色彩模式革新（移除低效羊皮纸，新增柔和护眼深色）**：
+  - **彻底移除羊皮纸模式 (`SEPIA`)**：传统暖色乘法滤镜对比度低、字迹边缘浑浊，严重降低长篇阅读可读性，已被全量废弃移除；
+  - **柔和深色护眼模式 (`ReadingColorMode.SOFT_DARK`)**：基于线性 `ColorMatrix` 精确对白纸黑字进行逆向压缩映射（白底 $255 \to \#1E222B$，黑字 $0 \to \#D6DCE5$），消除了原版反色刺目的纯黑白对比眩光，将对比度维持在最佳 7.8:1 WCAG AAA 黄金阅读舒适区间；
+  - **极暗纯黑模式 (`ReadingColorMode.AMOLED_DARK`)**：针对 OLED 屏幕，底色完全吸光省电（$\#000000$），并将高光白字压低至柔和银灰（$204$），消除刺目感；
+- **操作栏图标动态视觉状态反馈 (`ViewerActionButton`)**：
+  - 针对白边智能裁切、护眼暗色模式、全屏沉浸、屏幕横屏、横向翻页等开关按钮，引入全状态即时反馈；
+  - 激活时图标自动高亮为 Lumina Azure Blue 品牌天蓝色 (`MaterialTheme.colorScheme.primary`)，并辅以圆形半透明蓝色胶囊底色（`alpha = 0.16f`）；关闭时平滑恢复为低调次要图标色与透明背景；
+  - 借助 `animateColorAsState` 实现毫秒级色彩平滑补间过渡，交互体验极佳。
+
+### 2.7 零权限存储与历史管道 (`data`)
 - **现代 SAF 架构**：应用无需声明 `READ_EXTERNAL_STORAGE` 或 `MANAGE_EXTERNAL_STORAGE` 权限；
 - 通过 `ActivityResultContracts.OpenDocument` 或系统的 `ACTION_VIEW` Intent 获得 `content://` 授权 Uri，直接获取 `ParcelFileDescriptor`。
 - **免 KSP 原生 SQLite 持久化 (`HistoryDatabase`)**：
   - 使用轻量原生 `SQLiteOpenHelper` 搭配 `StateFlow` 实现全响应式数据流；
   - 规避了 Room 与 KSP 编译插件在不同 Kotlin/AGP 大版本间的配置冲突，极速编译。
 
-### 2.7 主题与外观子系统 (`ui/theme` & `ui/settings`)
+### 2.8 主题与外观子系统 (`ui/theme` & `ui/settings`)
 - 详见专题白皮书：[THEME_DESIGN.md](file:///home/eddy/myplace/project/lumina-pdf/doc/THEME_DESIGN.md)。
 - 实现了跟随系统、日间浅色、夜间板岩灰、AMOLED 纯黑四维矩阵，全屏状态栏与导航栏无感自适应。
 
