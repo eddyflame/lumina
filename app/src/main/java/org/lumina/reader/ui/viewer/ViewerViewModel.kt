@@ -23,6 +23,15 @@ import org.lumina.reader.data.preferences.ThemePreferences
 import org.lumina.reader.data.preferences.ThemeSettings
 import org.lumina.reader.data.repository.DocumentRepository
 
+import org.lumina.reader.core.annotation.AddAnnotationCommand
+import org.lumina.reader.core.annotation.AnnotationCommand
+import org.lumina.reader.core.annotation.AnnotationStore
+import org.lumina.reader.core.annotation.AnnotationTool
+import org.lumina.reader.core.annotation.DeleteAnnotationCommand
+import org.lumina.reader.core.annotation.NormalizedPoint
+import org.lumina.reader.core.annotation.PdfAnnotation
+import org.lumina.reader.core.annotation.UndoRedoManager
+
 data class ViewerUiState(
     val isLoading: Boolean = false,
     val documentInfo: PdfDocumentInfo? = null,
@@ -36,13 +45,56 @@ data class ViewerUiState(
     val isFullscreen: Boolean = false,
     val isLandscape: Boolean = false,
     val outlines: List<PdfOutlineItem> = emptyList(),
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val annotationTool: AnnotationTool = AnnotationTool.NONE,
+    val annotationColor: Long = 0xFF0066FF, // 默认品牌天蓝
+    val annotationStrokeWidthDp: Float = 3f,
+    val annotations: Map<Int, List<PdfAnnotation>> = emptyMap(),
+    val canUndoAnnotation: Boolean = false,
+    val canRedoAnnotation: Boolean = false
 )
 
 class ViewerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = DocumentRepository(application)
     private val themePreferences = ThemePreferences(application)
+    private val undoRedoManager = UndoRedoManager()
+
+    private val annotationStore = object : AnnotationStore {
+        override fun addAnnotation(annotation: PdfAnnotation) {
+            _uiState.update { state ->
+                val currentList = state.annotations[annotation.pageIndex] ?: emptyList()
+                val updated = state.annotations + (annotation.pageIndex to (currentList + annotation))
+                state.copy(annotations = updated)
+            }
+        }
+
+        override fun removeAnnotation(annotationId: String) {
+            _uiState.update { state ->
+                val updated = state.annotations.mapValues { (_, list) ->
+                    list.filter { it.id != annotationId }
+                }
+                state.copy(annotations = updated)
+            }
+        }
+
+        override fun getAnnotationsForPage(pageIndex: Int): List<PdfAnnotation> {
+            return _uiState.value.annotations[pageIndex] ?: emptyList()
+        }
+    }
+
+    init {
+        viewModelScope.launch {
+            undoRedoManager.canUndoFlow.collect { canUndo ->
+                _uiState.update { it.copy(canUndoAnnotation = canUndo) }
+            }
+        }
+        viewModelScope.launch {
+            undoRedoManager.canRedoFlow.collect { canRedo ->
+                _uiState.update { it.copy(canRedoAnnotation = canRedo) }
+            }
+        }
+    }
 
     val recentDocuments: StateFlow<List<RecentDocument>> = repository.recentDocuments
     val themeSettings: StateFlow<ThemeSettings> = themePreferences.themeSettings
@@ -60,13 +112,16 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openDocument(uri: Uri) {
         viewModelScope.launch {
+            undoRedoManager.clear()
             _uiState.update {
                 it.copy(
                     isLoading = true,
                     errorMessage = null,
                     activeColumnBounds = null,
                     isFullscreen = false,
-                    isLandscape = false
+                    isLandscape = false,
+                    annotationTool = AnnotationTool.NONE,
+                    annotations = emptyMap()
                 )
             }
             try {
@@ -200,6 +255,55 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun togglePinRecentDocument(uri: String, isPinned: Boolean) {
         repository.togglePinRecentDocument(uri, isPinned)
+    }
+
+    // ================================= 注释与手写动作 =================================
+
+    fun setAnnotationTool(tool: AnnotationTool) {
+        _uiState.update { it.copy(annotationTool = tool) }
+    }
+
+    fun setAnnotationColor(color: Long) {
+        _uiState.update { it.copy(annotationColor = color) }
+    }
+
+    fun setAnnotationStrokeWidth(widthDp: Float) {
+        _uiState.update { it.copy(annotationStrokeWidthDp = widthDp) }
+    }
+
+    fun addInkAnnotation(pageIndex: Int, strokes: List<List<NormalizedPoint>>, isHighlighter: Boolean) {
+        if (strokes.isEmpty() || strokes.all { it.isEmpty() }) return
+        val ink = PdfAnnotation.Ink(
+            pageIndex = pageIndex,
+            color = _uiState.value.annotationColor,
+            strokeWidthDp = _uiState.value.annotationStrokeWidthDp,
+            isHighlighter = isHighlighter,
+            strokes = strokes
+        )
+        undoRedoManager.execute(AddAnnotationCommand(annotationStore, ink))
+    }
+
+    fun eraseAnnotationAt(pageIndex: Int, point: NormalizedPoint) {
+        val list = _uiState.value.annotations[pageIndex] ?: return
+        val target = list.filterIsInstance<PdfAnnotation.Ink>().lastOrNull { it.intersects(point) }
+        if (target != null) {
+            undoRedoManager.execute(DeleteAnnotationCommand(annotationStore, target))
+        }
+    }
+
+    fun undoAnnotation() {
+        undoRedoManager.undo()
+    }
+
+    fun redoAnnotation() {
+        undoRedoManager.redo()
+    }
+
+    fun clearAllAnnotationsForPage(pageIndex: Int) {
+        val list = _uiState.value.annotations[pageIndex] ?: return
+        for (annot in list) {
+            undoRedoManager.execute(DeleteAnnotationCommand(annotationStore, annot))
+        }
     }
 
     fun clearAllHistory() {
