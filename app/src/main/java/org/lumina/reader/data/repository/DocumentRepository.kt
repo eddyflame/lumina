@@ -18,6 +18,7 @@ import org.lumina.reader.data.db.HistoryDatabase
 import org.lumina.reader.data.db.RecentDocument
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.FileOutputStream
 import java.io.IOException
 
 /**
@@ -86,30 +87,63 @@ class DocumentRepository(
                 }
             }
 
-            // 2. 临时释放底层 PdfRenderer 避免持锁冲突
-            pdfEngine.close()
-
-            // 3. 打开 SAF 目标写入流并覆写
-            val outputStream = try {
-                resolver.openOutputStream(uri, "wt")
+            // 2. 写入目标文件 (优先使用 ParcelFileDescriptor 并截断原有长度，防止脏数据残留损坏 PDF)
+            val targetPfd = try {
+                if (uri.scheme == "content") {
+                    resolver.openFileDescriptor(uri, "wt") ?: resolver.openFileDescriptor(uri, "rw")
+                } else null
             } catch (e: SecurityException) {
                 throw SecurityException("该文件只读或无写权限，请使用【另存为】功能保存副本", e)
-            } ?: throw IOException("无法获取写入流: $uri")
+            } catch (_: Exception) {
+                null
+            }
 
-            outputStream.use { targetOut ->
-                tempFile.inputStream().use { tempIn ->
-                    tempIn.copyTo(targetOut)
-                    targetOut.flush()
+            if (targetPfd != null) {
+                targetPfd.use { pfdItem ->
+                    FileOutputStream(pfdItem.fileDescriptor).use { fos ->
+                        val channel = fos.channel
+                        channel.position(0)
+                        channel.truncate(0)
+                        tempFile.inputStream().use { tempIn ->
+                            tempIn.channel.transferTo(0, tempFile.length(), channel)
+                        }
+                        channel.force(true)
+                    }
+                }
+            } else {
+                val outputStream = try {
+                    if (uri.scheme == "file") {
+                        File(uri.path ?: "").outputStream()
+                    } else {
+                        resolver.openOutputStream(uri, "wt") ?: resolver.openOutputStream(uri, "w")
+                    }
+                } catch (e: SecurityException) {
+                    throw SecurityException("该文件只读或无写权限，请使用【另存为】功能保存副本", e)
+                } catch (e: Exception) {
+                    try {
+                        resolver.openOutputStream(uri, "w")
+                    } catch (e2: SecurityException) {
+                        throw SecurityException("该文件只读或无写权限，请使用【另存为】功能保存副本", e2)
+                    } catch (e2: Exception) {
+                        throw IOException("无法获取写入流: ${e2.message}", e2)
+                    }
+                } ?: throw IOException("无法获取写入流: $uri")
+
+                outputStream.use { targetOut ->
+                    tempFile.inputStream().use { tempIn ->
+                        tempIn.copyTo(targetOut)
+                        targetOut.flush()
+                    }
                 }
             }
 
-            // 4. 重新装载并返回最新的文档模型
-            val title = queryDocumentTitle(uri) ?: "Document.pdf"
+            // 3. 打开新文件的 ParcelFileDescriptor，并热重载底层渲染引擎，杜绝 UI 闪退
             val pfd = resolver.openFileDescriptor(uri, "r")
                 ?: throw FileNotFoundException("无法获取重新装载的文件描述符: $uri")
 
-            val newInfo = pdfEngine.open(uri, title, pfd, 0)
-            historyDb.recordProgress(uri.toString(), title, newInfo.pageCount, 0)
+            val newInfo = pdfEngine.reload(pfd)
+            val title = queryDocumentTitle(uri) ?: newInfo.title
+            historyDb.recordProgress(uri.toString(), title, newInfo.pageCount, newInfo.initialPage)
             newInfo
         } finally {
             if (tempFile.exists()) {
@@ -126,7 +160,7 @@ class DocumentRepository(
         targetUri: Uri,
         annotations: Map<Int, List<PdfAnnotation>>,
         pageSpecs: List<PageEditSpec>
-    ) = withContext(Dispatchers.IO) {
+    ): Unit = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val tempFile = File.createTempFile("lumina_export_", ".pdf", context.cacheDir)
         try {
@@ -139,13 +173,42 @@ class DocumentRepository(
                 }
             }
 
-            val targetOut = resolver.openOutputStream(targetUri, "wt")
-                ?: throw IOException("无法创建目标输出流: $targetUri")
+            val targetPfd = try {
+                if (targetUri.scheme == "content") {
+                    resolver.openFileDescriptor(targetUri, "wt") ?: resolver.openFileDescriptor(targetUri, "rw")
+                } else null
+            } catch (_: Exception) {
+                null
+            }
 
-            targetOut.use { out ->
-                tempFile.inputStream().use { tempIn ->
-                    tempIn.copyTo(out)
-                    out.flush()
+            if (targetPfd != null) {
+                targetPfd.use { pfdItem ->
+                    FileOutputStream(pfdItem.fileDescriptor).use { fos ->
+                        val channel = fos.channel
+                        channel.position(0)
+                        channel.truncate(0)
+                        tempFile.inputStream().use { tempIn ->
+                            tempIn.channel.transferTo(0, tempFile.length(), channel)
+                        }
+                        channel.force(true)
+                    }
+                }
+            } else {
+                val targetOut = try {
+                    if (targetUri.scheme == "file") {
+                        File(targetUri.path ?: "").outputStream()
+                    } else {
+                        resolver.openOutputStream(targetUri, "wt") ?: resolver.openOutputStream(targetUri, "w")
+                    }
+                } catch (e: Exception) {
+                    resolver.openOutputStream(targetUri, "w")
+                } ?: throw IOException("无法创建目标输出流: $targetUri")
+
+                targetOut.use { out ->
+                    tempFile.inputStream().use { tempIn ->
+                        tempIn.copyTo(out)
+                        out.flush()
+                    }
                 }
             }
         } finally {

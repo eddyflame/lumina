@@ -107,7 +107,7 @@ fun ViewerTopBar(
 
                 if (uiState.isSaving) {
                     Box(
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(40.dp),
                         contentAlignment = androidx.compose.ui.Alignment.Center
                     ) {
                         CircularProgressIndicator(
@@ -139,22 +139,36 @@ fun ViewerTopBar(
                         onDismissRequest = { isMenuOpen = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text(if (uiState.isAutoCropEnabled) "智能白边裁切 (已开启)" else "智能白边裁切 (已关闭)") },
+                            text = { Text("另存为新文档 (Save As...)") },
                             leadingIcon = {
                                 Icon(
-                                    Icons.Default.Crop,
+                                    Icons.Default.SaveAs,
                                     contentDescription = null,
-                                    tint = if (uiState.isAutoCropEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             },
-                            trailingIcon = if (uiState.isAutoCropEnabled) {
-                                { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                            } else null,
                             onClick = {
                                 isMenuOpen = false
-                                onToggleAutoCrop()
+                                onSaveAsDocument()
                             }
                         )
+
+                        DropdownMenuItem(
+                            text = { Text("页面组织与编辑") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.DashboardCustomize,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            onClick = {
+                                isMenuOpen = false
+                                onOpenPageOrganizer()
+                            }
+                        )
+
+                        HorizontalDivider()
 
                         DropdownMenuItem(
                             text = { Text(if (uiState.isFullscreen) "退出全屏模式" else "全屏沉浸模式") },
@@ -215,107 +229,6 @@ fun ViewerTopBar(
                         HorizontalDivider()
 
                         DropdownMenuItem(
-                            text = { Text("色彩: 常规白底") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.LightMode,
-                                    contentDescription = null,
-                                    tint = if (uiState.colorMode == ReadingColorMode.NORMAL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            trailingIcon = if (uiState.colorMode == ReadingColorMode.NORMAL) {
-                                { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                            } else null,
-                            onClick = {
-                                isMenuOpen = false
-                                onSetColorMode(ReadingColorMode.NORMAL)
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("色彩: 柔和深色 (舒适护眼)") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.DarkMode,
-                                    contentDescription = null,
-                                    tint = if (uiState.colorMode == ReadingColorMode.SOFT_DARK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            trailingIcon = if (uiState.colorMode == ReadingColorMode.SOFT_DARK) {
-                                { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                            } else null,
-                            onClick = {
-                                isMenuOpen = false
-                                onSetColorMode(ReadingColorMode.SOFT_DARK)
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("色彩: 极暗纯黑 (AMOLED 省电)") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.DarkMode,
-                                    contentDescription = null,
-                                    tint = if (uiState.colorMode == ReadingColorMode.AMOLED_DARK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            trailingIcon = if (uiState.colorMode == ReadingColorMode.AMOLED_DARK) {
-                                { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                            } else null,
-                            onClick = {
-                                isMenuOpen = false
-                                onSetColorMode(ReadingColorMode.AMOLED_DARK)
-                            }
-                        )
-
-                        HorizontalDivider()
-
-                        DropdownMenuItem(
-                            text = { Text("保存修改 (Save)") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Save,
-                                    contentDescription = null,
-                                    tint = if (hasModifications) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            onClick = {
-                                isMenuOpen = false
-                                onSaveDocument()
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("另存为新文档 (Save As...)") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.SaveAs,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            onClick = {
-                                isMenuOpen = false
-                                onSaveAsDocument()
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text("页面组织与编辑") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.DashboardCustomize,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            onClick = {
-                                isMenuOpen = false
-                                onOpenPageOrganizer()
-                            }
-                        )
-
-                        DropdownMenuItem(
                             text = { Text("跳转到指定页") },
                             leadingIcon = { Icon(Icons.Default.Numbers, contentDescription = null) },
                             onClick = {
@@ -350,30 +263,21 @@ fun ViewerActionButton(
 ) {
     val activeColor = MaterialTheme.colorScheme.primary
     val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val activeBg = activeColor.copy(alpha = 0.16f)
-    val inactiveBg = Color.Transparent
 
     val iconColor by animateColorAsState(
         targetValue = if (isActive) activeColor else inactiveColor,
         label = "viewer_icon_color"
     )
-    val containerBg by animateColorAsState(
-        targetValue = if (isActive) activeBg else inactiveBg,
-        label = "viewer_btn_bg"
-    )
 
     IconButton(
         onClick = onClick,
-        modifier = modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(containerBg)
+        modifier = modifier.size(40.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = iconColor,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(22.dp)
         )
     }
 }

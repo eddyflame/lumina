@@ -183,12 +183,36 @@ class AndroidPdfRendererEngine(
         list
     }
 
+    override suspend fun reload(pfd: ParcelFileDescriptor): PdfDocumentInfo = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val oldDoc = docInfo ?: throw IllegalStateException("文档尚未打开，无法执行热重载")
+            closeInternal()
+            this@AndroidPdfRendererEngine.pfd = pfd
+            try {
+                val newRenderer = PdfRenderer(pfd)
+                this@AndroidPdfRendererEngine.renderer = newRenderer
+                val pageCount = newRenderer.pageCount
+                val safeInitialPage = oldDoc.initialPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+                val newInfo = oldDoc.copy(
+                    pageCount = pageCount,
+                    fileSize = pfd.statSize,
+                    initialPage = safeInitialPage
+                )
+                this@AndroidPdfRendererEngine.docInfo = newInfo
+                newInfo
+            } catch (e: Exception) {
+                closeInternal()
+                throw IOException("无法重新加载 PdfRenderer: ${e.message}", e)
+            }
+        }
+    }
+
     override fun close() {
-        mutex.tryLock()
+        val acquired = mutex.tryLock()
         try {
             closeInternal()
         } finally {
-            if (mutex.isLocked) {
+            if (acquired) {
                 mutex.unlock()
             }
         }
