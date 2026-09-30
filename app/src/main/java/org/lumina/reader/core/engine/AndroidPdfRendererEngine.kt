@@ -207,6 +207,12 @@ class AndroidPdfRendererEngine(
         }
     }
 
+    override fun clearMemoryCache() {
+        bitmapCache.clear()
+        pageInfoCache.clear()
+        cropBoundsCache.clear()
+    }
+
     override fun close() {
         val acquired = mutex.tryLock()
         try {

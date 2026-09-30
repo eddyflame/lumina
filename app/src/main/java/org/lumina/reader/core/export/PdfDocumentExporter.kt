@@ -30,6 +30,8 @@ object PdfDocumentExporter {
 
     private var isInitialized = false
 
+    private var tempDir: java.io.File? = null
+
     /**
      * 初始化 PDFBox 资源加载器
      */
@@ -42,6 +44,7 @@ object PdfDocumentExporter {
             } catch (_: Exception) {
                 // 在纯 JVM 单元测试环境中，若 Context 为 mock 或缺少 Android assets，允许降级
             }
+            tempDir = context.applicationContext.cacheDir
             isInitialized = true
         }
     }
@@ -53,14 +56,24 @@ object PdfDocumentExporter {
      * @param outputStream 目标保存输出流
      * @param annotations 页面注释映射表 (originalPageIndex -> List<PdfAnnotation>)
      * @param pageSpecs 页面排序与旋转规范 (virtualIndex -> PageEditSpec)
+     * @param customTempDir 可选临时工作目录 (用于 ScratchFile 磁盘缓存，防止 OOM)
      */
     suspend fun exportPdf(
         inputStream: InputStream,
         outputStream: OutputStream,
         annotations: Map<Int, List<PdfAnnotation>>,
-        pageSpecs: List<PageEditSpec>
+        pageSpecs: List<PageEditSpec>,
+        customTempDir: java.io.File? = null
     ) = withContext(Dispatchers.IO) {
-        val originalDoc = PDDocument.load(inputStream)
+        // 配置混合内存限制策略 (2MB 内存缓冲，超量部分流式落盘到缓存区，杜绝 Dalvik Heap OOM)
+        val targetTempDir = customTempDir ?: tempDir
+        val memSetting = if (targetTempDir != null && targetTempDir.exists()) {
+            com.tom_roush.pdfbox.io.MemoryUsageSetting.setupMixed(2 * 1024 * 1024).setTempDir(targetTempDir)
+        } else {
+            com.tom_roush.pdfbox.io.MemoryUsageSetting.setupMixed(2 * 1024 * 1024)
+        }
+
+        val originalDoc = PDDocument.load(inputStream, memSetting)
         try {
             val originalPageCount = originalDoc.numberOfPages
 
@@ -71,7 +84,7 @@ object PdfDocumentExporter {
             )
 
             if (!hasPageEdits) {
-                // 没有页面顺序变动与旋转，直接在原始页面上写入注释并覆写保存
+                // 没有页面顺序变动与旋转，直接在原始页面上写入注释并保存
                 for (pageIndex in 0 until originalPageCount) {
                     val pageAnnots = annotations[pageIndex]
                     if (!pageAnnots.isNullOrEmpty()) {
@@ -79,32 +92,37 @@ object PdfDocumentExporter {
                         applyAnnotationsToPage(originalDoc, page, pageAnnots)
                     }
                 }
-                originalDoc.save(outputStream)
             } else {
-                // 有页面排序/旋转/删减：重构页面结构树
-                val newDoc = PDDocument()
-                try {
-                    for (spec in pageSpecs) {
-                        if (spec.originalPageIndex in 0 until originalPageCount) {
-                            val originalPage = originalDoc.getPage(spec.originalPageIndex)
-                            val importedPage = newDoc.importPage(originalPage)
-                            if (originalPage.resources != null) {
-                                importedPage.resources = originalPage.resources
-                            }
-                            if (spec.normalizedRotation != 0) {
-                                importedPage.rotation = (importedPage.rotation + spec.normalizedRotation) % 360
-                            }
-                            val pageAnnots = annotations[spec.originalPageIndex]
-                            if (!pageAnnots.isNullOrEmpty()) {
-                                applyAnnotationsToPage(newDoc, importedPage, pageAnnots)
-                            }
+                // 有页面排序/旋转/删减：在原文档内部重构页面结构树，杜绝双文档克隆导致的大内存激增与 OOM
+                val originalPages = (0 until originalPageCount).map { originalDoc.getPage(it) }
+
+                // 1. 原位更新有效页面的批注与旋转角度
+                for (spec in pageSpecs) {
+                    if (spec.originalPageIndex in 0 until originalPageCount) {
+                        val page = originalPages[spec.originalPageIndex]
+                        if (spec.normalizedRotation != 0) {
+                            page.rotation = (page.rotation + spec.normalizedRotation) % 360
+                        }
+                        val pageAnnots = annotations[spec.originalPageIndex]
+                        if (!pageAnnots.isNullOrEmpty()) {
+                            applyAnnotationsToPage(originalDoc, page, pageAnnots)
                         }
                     }
-                    newDoc.save(outputStream)
-                } finally {
-                    newDoc.close()
+                }
+
+                // 2. 清空原页面树索引并按新顺序重新挂载
+                while (originalDoc.numberOfPages > 0) {
+                    originalDoc.removePage(0)
+                }
+
+                for (spec in pageSpecs) {
+                    if (spec.originalPageIndex in 0 until originalPageCount) {
+                        originalDoc.addPage(originalPages[spec.originalPageIndex])
+                    }
                 }
             }
+
+            originalDoc.save(outputStream)
         } finally {
             originalDoc.close()
         }
@@ -195,8 +213,8 @@ object PdfDocumentExporter {
                         currentAnnots.add(inkAnnot)
                         try {
                             inkAnnot.constructAppearances(doc)
-                        } catch (_: Exception) {
-                            // 降级：若外观流构造发生异常，保持标准 /InkList 字典结构
+                        } catch (_: Throwable) {
+                            // 降级：若外观流构造发生异常或出现内存压力，安全保持标准 /InkList 字典结构
                         }
                     }
                 }

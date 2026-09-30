@@ -77,13 +77,16 @@ class DocumentRepository(
         val resolver = context.contentResolver
         val tempFile = File.createTempFile("lumina_save_", ".pdf", context.cacheDir)
         try {
+            // 导出前先主动释放位图内存缓存，为 PDFBox 腾出足够的堆内存
+            pdfEngine.clearMemoryCache()
+
             // 1. 读取原文档输入流，由 PdfDocumentExporter 执行纯 JVM 合成与物理写入
             val inputStream = resolver.openInputStream(uri)
                 ?: throw FileNotFoundException("无法打开原始文件输入流: $uri")
 
             inputStream.use { input ->
                 tempFile.outputStream().use { output ->
-                    PdfDocumentExporter.exportPdf(input, output, annotations, pageSpecs)
+                    PdfDocumentExporter.exportPdf(input, output, annotations, pageSpecs, context.cacheDir)
                 }
             }
 
@@ -164,12 +167,15 @@ class DocumentRepository(
         val resolver = context.contentResolver
         val tempFile = File.createTempFile("lumina_export_", ".pdf", context.cacheDir)
         try {
+            // 导出前先主动释放位图内存缓存，为 PDFBox 腾出足够的堆内存
+            pdfEngine.clearMemoryCache()
+
             val inputStream = resolver.openInputStream(sourceUri)
                 ?: throw FileNotFoundException("无法打开源文件输入流: $sourceUri")
 
             inputStream.use { input ->
                 tempFile.outputStream().use { output ->
-                    PdfDocumentExporter.exportPdf(input, output, annotations, pageSpecs)
+                    PdfDocumentExporter.exportPdf(input, output, annotations, pageSpecs, context.cacheDir)
                 }
             }
 

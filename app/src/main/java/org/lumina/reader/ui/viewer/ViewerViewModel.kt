@@ -411,6 +411,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true) }
             try {
+                // 另存为前主动清空已缓存的巨幅渲染位图并请求 GC，留出充足 Dalvik 堆内存供 PDFBox 处理
+                repository.pdfEngine.clearMemoryCache()
+                System.gc()
+
                 repository.exportDocumentToUri(
                     sourceUri = sourceUri,
                     targetUri = targetUri,
@@ -425,7 +429,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 onSuccess?.invoke()
             } catch (t: Throwable) {
-                val msg = t.localizedMessage ?: "另存为失败"
+                val msg = when (t) {
+                    is OutOfMemoryError -> "保存失败：设备可用内存不足，已释放临时缓存，请重试"
+                    else -> t.localizedMessage ?: "另存为失败"
+                }
                 _uiState.update {
                     it.copy(
                         isSaving = false,
