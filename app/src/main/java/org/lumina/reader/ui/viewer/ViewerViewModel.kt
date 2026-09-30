@@ -65,6 +65,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val themePreferences = ThemePreferences(application)
     private val undoRedoManager = UndoRedoManager()
 
+    private val _uiState = MutableStateFlow(ViewerUiState())
+    val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
+
     private val annotationStore = object : AnnotationStore {
         override fun addAnnotation(annotation: PdfAnnotation) {
             _uiState.update { state ->
@@ -111,9 +114,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun setDarkThemeStyle(style: DarkThemeStyle) {
         themePreferences.setDarkThemeStyle(style)
     }
-
-    private val _uiState = MutableStateFlow(ViewerUiState())
-    val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
 
     fun openDocument(uri: Uri) {
         viewModelScope.launch {
