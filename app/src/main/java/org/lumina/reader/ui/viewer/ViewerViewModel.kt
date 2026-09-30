@@ -379,61 +379,25 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * 原地回存 (In-Place Overwrite)
+     * 文档保存统一走【另存为】副本通道，严格遵循不破坏、不修改原文件原则
      */
     fun saveDocument(onSuccess: (() -> Unit)? = null, onError: ((String) -> Unit)? = null) {
-        val uri = _uiState.value.documentInfo?.uri ?: return
+        val doc = _uiState.value.documentInfo ?: return
         if (_uiState.value.isSaving) return
 
-        viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true) }
-            try {
-                val newInfo = repository.saveDocumentInPlace(
-                    uri = uri,
-                    annotations = _uiState.value.annotations,
-                    pageSpecs = _uiState.value.pageSpecs
-                )
-                undoRedoManager.clear()
-                val initialSpecs = (0 until newInfo.pageCount).map { PageEditSpec(it, 0) }
-                val safePageIndex = _uiState.value.currentPageIndex.coerceIn(0, (newInfo.pageCount - 1).coerceAtLeast(0))
-                _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        documentInfo = newInfo,
-                        annotations = emptyMap(),
-                        pageSpecs = initialSpecs,
-                        currentPageIndex = safePageIndex,
-                        saveUserMessage = "文档保存成功"
-                    )
-                }
-                onSuccess?.invoke()
-            } catch (t: Throwable) {
-                val isPermissionIssue = t is SecurityException ||
-                    (t.message?.contains("只读", ignoreCase = true) == true) ||
-                    (t.message?.contains("permission", ignoreCase = true) == true)
+        val suggestedName = doc.title.let {
+            val base = if (it.endsWith(".pdf", ignoreCase = true)) it.dropLast(4) else it
+            "${base}_edited.pdf"
+        }
 
-                if (isPermissionIssue) {
-                    val defaultName = (_uiState.value.documentInfo?.title ?: "Document").let {
-                        if (it.endsWith(".pdf", ignoreCase = true)) it else "$it.pdf"
-                    }
-                    _uiState.update {
-                        it.copy(
-                            isSaving = false,
-                            saveUserMessage = "原文档只读，已自动启动【另存为】"
-                        )
-                    }
-                    triggerSaveAsEvent.send(defaultName)
-                } else {
-                    val msg = t.localizedMessage ?: "保存失败"
-                    _uiState.update {
-                        it.copy(
-                            isSaving = false,
-                            saveUserMessage = msg
-                        )
-                    }
-                    onError?.invoke(msg)
-                }
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    saveUserMessage = "保护原文件：正在调起【另存为】保存副本..."
+                )
             }
+            triggerSaveAsEvent.send(suggestedName)
+            onSuccess?.invoke()
         }
     }
 

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import org.lumina.reader.data.db.RecentDocument
 import org.lumina.reader.ui.settings.ThemeSettingsBottomSheet
 import org.lumina.reader.ui.viewer.ViewerViewModel
+import org.lumina.reader.ui.viewer.components.AboutAppDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,6 +38,7 @@ fun ShelfScreen(
     val themeSettings by viewModel.themeSettings.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var showThemeSheet by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
 
     val filteredList = remember(recentList, searchQuery) {
@@ -76,6 +78,13 @@ fun ShelfScreen(
                         Icon(
                             Icons.Default.Palette,
                             contentDescription = "外观主题",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { showAboutDialog = true }) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = "关于软件",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -264,6 +273,12 @@ fun ShelfScreen(
                     Text("取消")
                 }
             }
+        )
+    }
+
+    if (showAboutDialog) {
+        AboutAppDialog(
+            onDismiss = { showAboutDialog = false }
         )
     }
 }

@@ -33,11 +33,10 @@ fun ViewerTopBar(
     onToggleFullscreen: () -> Unit,
     onToggleLandscape: () -> Unit,
     onToggleLayoutMode: () -> Unit,
-    onSetColorMode: (ReadingColorMode) -> Unit,
     onOpenPageOrganizer: () -> Unit,
     onShowJumpDialog: () -> Unit,
     onShowDocInfoDialog: () -> Unit,
-    onSaveDocument: () -> Unit,
+    onShowAboutDialog: () -> Unit,
     onSaveAsDocument: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -118,10 +117,10 @@ fun ViewerTopBar(
                     }
                 } else {
                     ViewerActionButton(
-                        icon = Icons.Default.Save,
-                        contentDescription = "保存修改",
+                        icon = Icons.Default.SaveAs,
+                        contentDescription = "另存为新副本",
                         isActive = hasModifications,
-                        onClick = onSaveDocument
+                        onClick = onSaveAsDocument
                     )
                 }
 
@@ -138,21 +137,6 @@ fun ViewerTopBar(
                         expanded = isMenuOpen,
                         onDismissRequest = { isMenuOpen = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("另存为新文档 (Save As...)") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.SaveAs,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            onClick = {
-                                isMenuOpen = false
-                                onSaveAsDocument()
-                            }
-                        )
-
                         DropdownMenuItem(
                             text = { Text("页面组织与编辑") },
                             leadingIcon = {
@@ -239,10 +223,27 @@ fun ViewerTopBar(
 
                         DropdownMenuItem(
                             text = { Text("文档信息") },
-                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) },
                             onClick = {
                                 isMenuOpen = false
                                 onShowDocInfoDialog()
+                            }
+                        )
+
+                        HorizontalDivider()
+
+                        DropdownMenuItem(
+                            text = { Text("关于应用") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            onClick = {
+                                isMenuOpen = false
+                                onShowAboutDialog()
                             }
                         )
                     }

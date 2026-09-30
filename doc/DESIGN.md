@@ -71,8 +71,7 @@ graph TD
         subgraph 页面编辑与标准导出域
             F_ExportAnnot[批注标准化回存: ISO 32000-1 /Ink 与 /AP 外观流]
             F_PageOrganize[页面管理器: 多选/左旋/右旋/上移/下移/删除]
-            F_SaveInPlace[临时文件原子事务原地覆盖保存]
-            F_SaveAs[SAF 目标管道另存为新文档]
+            F_SaveAs[非破坏性保存: 统一 SAF 另存为安全副本导出]
         end
     end
 ```
@@ -399,7 +398,7 @@ app/src/main/
 │       │       ├── PageOrganizerScreen.kt     # 页面管理全屏对话框 (缩略图网格、旋转、重排、删除)
 │       │       ├── PdfPageView.kt             # 页面渲染承载视图、Canvas 批注图层与手势响应
 │       │       ├── ViewerOutlineDrawer.kt     # 文档目录大纲滑出式抽屉
-│       │       └── ViewerDialogs.kt           # 页码直接跳转、另存为文件命名等弹出对话框
+│       │       └── ViewerDialogs.kt           # 页码直接跳转、文档详情与关于应用 (作者: eddy) 对话框
 │       ├── settings/                          # 设置视图
 │       │   └── ThemeSettingsBottomSheet.kt   # 现代 M3 外观设置面板 (跟随系统、浅色、板岩深灰、AMOLED 纯黑)
 │       └── theme/                             # 主题与设计规范

@@ -71,8 +71,7 @@ graph TD
         subgraph Page Editing & Standard Export Domain
             F_ExportAnnot[Standard Serialization: ISO 32000-1 /Ink & /AP Streams]
             F_PageOrganize[Page Organizer: Multi-Select / Rotate / Reorder / Delete]
-            F_SaveInPlace[Atomic Temporary File In-Place Safe Overwrite]
-            F_SaveAs[SAF Pipe Export to New Document Destination]
+            F_SaveAs[Non-Destructive Save: Unified SAF Export to Safe Destination Copy]
         end
     end
 ```
@@ -358,7 +357,7 @@ app/src/main/
 │       │       ├── PageOrganizerScreen.kt     # Fullscreen page organizer (Grid, rotation, reorder, delete)
 │       │       ├── PdfPageView.kt             # Page renderer, interactive Canvas annotation layer
 │       │       ├── ViewerOutlineDrawer.kt     # Table of contents drawer
-│       │       └── ViewerDialogs.kt           # Jump-to-page & Save-As filename dialogs
+│       │       └── ViewerDialogs.kt           # Jump-to-page, document info & About App (Author: eddy) dialogs
 │       ├── settings/                          # Settings
 │       │   └── ThemeSettingsBottomSheet.kt   # Modern M3 theme configuration bottom sheet
 │       └── theme/                             # Design System
