@@ -301,38 +301,52 @@ fun ViewerScreen(
                 when (uiState.layoutMode) {
                     ReadingLayoutMode.CONTINUOUS_VERTICAL -> {
                         // 连续纵向瀑布流阅读：注释模式下禁用 LazyColumn 拦截滚动，保障单指画线不被中断断触
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            userScrollEnabled = uiState.annotationTool == AnnotationTool.NONE,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            items(pageCount) { virtualIndex ->
-                                val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
-                                PdfPageView(
-                                    pageIndex = spec.originalPageIndex,
-                                    pageCount = pageCount,
-                                    rotationDegrees = spec.normalizedRotation,
-                                    isAutoCrop = uiState.isAutoCropEnabled,
-                                    activeColumnBounds = uiState.activeColumnBounds,
-                                    colorFilter = pageColorFilter,
-                                    viewModel = viewModel,
-                                    layoutMode = uiState.layoutMode,
-                                    activeTool = uiState.annotationTool,
-                                    annotationColor = uiState.annotationColor,
-                                    annotationStrokeWidthDp = uiState.annotationStrokeWidthDp,
-                                    pageAnnotations = uiState.annotations[spec.originalPageIndex] ?: emptyList(),
-                                    onAddInkAnnotation = { idx, strokes, isHighlighter ->
-                                        viewModel.addInkAnnotation(idx, strokes, isHighlighter)
-                                    },
-                                    onEraseAnnotation = { idx, point ->
-                                        viewModel.eraseAnnotationAt(idx, point)
-                                    },
-                                    onTap = {
-                                        if (uiState.annotationTool == AnnotationTool.NONE) {
-                                            viewModel.toggleOverlay()
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                userScrollEnabled = uiState.annotationTool == AnnotationTool.NONE,
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                items(pageCount) { virtualIndex ->
+                                    val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
+                                    PdfPageView(
+                                        pageIndex = spec.originalPageIndex,
+                                        pageCount = pageCount,
+                                        rotationDegrees = spec.normalizedRotation,
+                                        isAutoCrop = uiState.isAutoCropEnabled,
+                                        activeColumnBounds = uiState.activeColumnBounds,
+                                        colorMode = uiState.colorMode,
+                                        colorFilter = pageColorFilter,
+                                        viewModel = viewModel,
+                                        layoutMode = uiState.layoutMode,
+                                        activeTool = uiState.annotationTool,
+                                        annotationColor = uiState.annotationColor,
+                                        annotationStrokeWidthDp = uiState.annotationStrokeWidthDp,
+                                        pageAnnotations = uiState.annotations[spec.originalPageIndex] ?: emptyList(),
+                                        showDivider = virtualIndex < pageCount - 1,
+                                        onAddInkAnnotation = { idx, strokes, isHighlighter ->
+                                            viewModel.addInkAnnotation(idx, strokes, isHighlighter)
+                                        },
+                                        onEraseAnnotation = { idx, point ->
+                                            viewModel.eraseAnnotationAt(idx, point)
+                                        },
+                                        onTap = {
+                                            if (uiState.annotationTool == AnnotationTool.NONE) {
+                                                viewModel.toggleOverlay()
+                                            }
                                         }
-                                    }
+                                    )
+                                }
+                            }
+
+                            if (uiState.annotationTool != AnnotationTool.NONE) {
+                                ContinuousAnnotationCanvasOverlay(
+                                    listState = listState,
+                                    effectiveSpecs = effectiveSpecs,
+                                    uiState = uiState,
+                                    viewModel = viewModel,
+                                    modifier = Modifier.fillMaxSize()
                                 )
                             }
                         }
@@ -354,6 +368,7 @@ fun ViewerScreen(
                                     rotationDegrees = spec.normalizedRotation,
                                     isAutoCrop = uiState.isAutoCropEnabled,
                                     activeColumnBounds = uiState.activeColumnBounds,
+                                    colorMode = uiState.colorMode,
                                     colorFilter = pageColorFilter,
                                     viewModel = viewModel,
                                     layoutMode = uiState.layoutMode,
@@ -361,6 +376,7 @@ fun ViewerScreen(
                                     annotationColor = uiState.annotationColor,
                                     annotationStrokeWidthDp = uiState.annotationStrokeWidthDp,
                                     pageAnnotations = uiState.annotations[spec.originalPageIndex] ?: emptyList(),
+                                    showDivider = false,
                                     onAddInkAnnotation = { idx, strokes, isHighlighter ->
                                         viewModel.addInkAnnotation(idx, strokes, isHighlighter)
                                     },

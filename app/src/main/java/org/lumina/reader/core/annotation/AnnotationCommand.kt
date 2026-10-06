@@ -55,6 +55,21 @@ class DeleteAnnotationCommand(
 }
 
 /**
+ * 复合多页/多段注释命令（支持多页跨页笔画作为一个原子事务一次性撤销/重做）
+ */
+class CompoundAnnotationCommand(
+    private val commands: List<AnnotationCommand>
+) : AnnotationCommand {
+    override fun execute() {
+        commands.forEach { it.execute() }
+    }
+
+    override fun undo() {
+        commands.asReversed().forEach { it.undo() }
+    }
+}
+
+/**
  * 撤销/重做命令栈管理器
  */
 class UndoRedoManager {
