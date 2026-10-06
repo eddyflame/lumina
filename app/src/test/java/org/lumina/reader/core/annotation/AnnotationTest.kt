@@ -111,4 +111,47 @@ class AnnotationTest {
         assertTrue(undoManager.canUndoFlow.value)
         assertFalse(undoManager.canRedoFlow.value)
     }
+
+    @Test
+    fun testCompoundAnnotationCommandAtomicUndoRedo() {
+        val undoManager = UndoRedoManager()
+        val storedList = mutableListOf<PdfAnnotation>()
+        val mockStore = object : AnnotationStore {
+            override fun addAnnotation(annotation: PdfAnnotation) {
+                storedList.add(annotation)
+            }
+            override fun removeAnnotation(annotationId: String) {
+                storedList.removeAll { it.id == annotationId }
+            }
+            override fun getAnnotationsForPage(pageIndex: Int): List<PdfAnnotation> {
+                return storedList.filter { it.pageIndex == pageIndex }
+            }
+        }
+
+        val inkPage0 = PdfAnnotation.Ink(pageIndex = 0, strokes = listOf(listOf(NormalizedPoint(0.5f, 0.9f))))
+        val inkPage1 = PdfAnnotation.Ink(pageIndex = 1, strokes = listOf(listOf(NormalizedPoint(0.5f, 0.1f))))
+        val compoundCommand = CompoundAnnotationCommand(
+            listOf(
+                AddAnnotationCommand(mockStore, inkPage0),
+                AddAnnotationCommand(mockStore, inkPage1)
+            )
+        )
+
+        undoManager.execute(compoundCommand)
+        assertEquals(2, storedList.size)
+        assertEquals(1, mockStore.getAnnotationsForPage(0).size)
+        assertEquals(1, mockStore.getAnnotationsForPage(1).size)
+
+        // 原子撤销：跨页笔迹两页均被一次性撤销
+        val undone = undoManager.undo()
+        assertTrue(undone)
+        assertEquals(0, storedList.size)
+
+        // 原子重做：两页笔画同时恢复
+        val redone = undoManager.redo()
+        assertTrue(redone)
+        assertEquals(2, storedList.size)
+        assertEquals(1, mockStore.getAnnotationsForPage(0).size)
+        assertEquals(1, mockStore.getAnnotationsForPage(1).size)
+    }
 }

@@ -213,6 +213,10 @@ class AndroidPdfRendererEngine(
         cropBoundsCache.clear()
     }
 
+    override fun getCachedCropBounds(pageIndex: Int): PageCropper2.CropBounds? {
+        return cropBoundsCache[pageIndex]
+    }
+
     override fun close() {
         val acquired = mutex.tryLock()
         try {

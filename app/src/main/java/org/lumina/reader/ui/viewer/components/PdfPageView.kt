@@ -1,6 +1,7 @@
 package org.lumina.reader.ui.viewer.components
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -13,13 +14,20 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import kotlin.math.min
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -32,6 +40,7 @@ import org.lumina.reader.core.annotation.NormalizedPoint
 import org.lumina.reader.core.annotation.PageCoordinateTransformer
 import org.lumina.reader.core.annotation.PdfAnnotation
 import org.lumina.reader.core.crop.PageCropper2
+import org.lumina.reader.core.model.ReadingColorMode
 import org.lumina.reader.core.model.ReadingLayoutMode
 import org.lumina.reader.ui.viewer.ViewerViewModel
 import kotlin.math.roundToInt
@@ -51,6 +60,7 @@ fun PdfPageView(
     rotationDegrees: Int = 0,
     isAutoCrop: Boolean,
     activeColumnBounds: PageCropper2.CropBounds?,
+    colorMode: ReadingColorMode = ReadingColorMode.NORMAL,
     colorFilter: ColorFilter?,
     viewModel: ViewerViewModel,
     layoutMode: ReadingLayoutMode,
@@ -58,6 +68,7 @@ fun PdfPageView(
     annotationColor: Long,
     annotationStrokeWidthDp: Float,
     pageAnnotations: List<PdfAnnotation>,
+    showDivider: Boolean = (pageIndex < pageCount - 1),
     onAddInkAnnotation: (pageIndex: Int, strokes: List<List<NormalizedPoint>>, isHighlighter: Boolean) -> Unit,
     onEraseAnnotation: (pageIndex: Int, point: NormalizedPoint) -> Unit,
     onTap: () -> Unit
@@ -104,12 +115,79 @@ fun PdfPageView(
         }
     }
 
-    val pageModifier = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) {
-        Modifier.fillMaxSize()
-    } else {
-        Modifier
+    val bitmap = pageBitmap
+    val activeCrop = when {
+        activeColumnBounds != null -> activeColumnBounds
+        isAutoCrop -> cropBounds
+        else -> PageCropper2.CropBounds.FULL
+    }
+    val isCropped = isAutoCrop || activeColumnBounds != null
+    val contentWidthRatio = activeCrop.width.coerceAtLeast(0.1f)
+    val contentHeightRatio = activeCrop.height.coerceAtLeast(0.1f)
+
+    // 页面与内容区域自适应尺寸计算
+    val rawAspect = if (bitmap != null && bitmap.height > 0) bitmap.width.toFloat() / bitmap.height.toFloat() else 1f
+    val unscaledHeightPx = if (rawAspect > 0f) screenWidthPx.toFloat() / rawAspect else screenWidthPx.toFloat()
+    val croppedHeightPx = if (isCropped) unscaledHeightPx * (contentHeightRatio / contentWidthRatio) else unscaledHeightPx
+
+    // 针对不同阅读排版模式构建精准布局容器与几何变换，根除切顶切底问题
+    val (pageModifier, contentBoxModifier, contentAlignment) = if (layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+        val zoomFactor = if (isCropped) 1f / contentWidthRatio else 1f
+        val pMod = Modifier
             .fillMaxWidth()
-            .padding(vertical = 0.dp)
+            .height(with(density) { croppedHeightPx.toDp() })
+            .clipToBounds()
+
+        val cMod = Modifier
+            .width(with(density) { screenWidthPx.toDp() })
+            .height(with(density) { unscaledHeightPx.toDp() })
+            .graphicsLayer {
+                if (rotationDegrees != 0) {
+                    rotationZ = rotationDegrees.toFloat()
+                }
+                if (isCropped) {
+                    transformOrigin = TransformOrigin.Center
+                    scaleX = zoomFactor
+                    scaleY = zoomFactor
+                    translationX = -((activeCrop.left + activeCrop.right) / 2f - 0.5f) * screenWidthPx * zoomFactor
+                    translationY = (unscaledHeightPx / 2f) * (zoomFactor - 1f) - activeCrop.top * unscaledHeightPx * zoomFactor
+                }
+            }
+        Triple(pMod, cMod, Alignment.TopStart)
+    } else {
+        // 单页横向模式：自适应屏幕宽高比，确保页面在屏幕内完整显示不切顶切底
+        val screenAspect = if (screenHeightPx > 0) screenWidthPx.toFloat() / screenHeightPx.toFloat() else 1f
+        val (fitW, fitH) = if (rawAspect > screenAspect) {
+            screenWidthPx.toFloat() to (if (rawAspect > 0f) screenWidthPx.toFloat() / rawAspect else screenWidthPx.toFloat())
+        } else {
+            (screenHeightPx.toFloat() * rawAspect) to screenHeightPx.toFloat()
+        }
+
+        val maxZoomX = screenWidthPx.toFloat() / (contentWidthRatio * fitW).coerceAtLeast(1f)
+        val maxZoomY = screenHeightPx.toFloat() / (contentHeightRatio * fitH).coerceAtLeast(1f)
+        val zoomFactor = if (isCropped) min(maxZoomX, maxZoomY) else 1f
+        val centerShiftX = ((activeCrop.left + activeCrop.right) / 2f - 0.5f) * fitW
+        val centerShiftY = ((activeCrop.top + activeCrop.bottom) / 2f - 0.5f) * fitH
+
+        val pMod = Modifier
+            .fillMaxSize()
+            .clipToBounds()
+
+        val cMod = Modifier
+            .size(with(density) { fitW.toDp() }, with(density) { fitH.toDp() })
+            .graphicsLayer {
+                if (rotationDegrees != 0) {
+                    rotationZ = rotationDegrees.toFloat()
+                }
+                if (isCropped) {
+                    transformOrigin = TransformOrigin.Center
+                    scaleX = zoomFactor
+                    scaleY = zoomFactor
+                    translationX = -centerShiftX * zoomFactor
+                    translationY = -centerShiftY * zoomFactor
+                }
+            }
+        Triple(pMod, cMod, Alignment.Center)
     }
 
     // 根据当前是否处于注释模式构建手势拦截 Modifier
@@ -124,11 +202,21 @@ fun PdfPageView(
                             offsetX = 0f
                             offsetY = 0f
                         } else {
-                            val tapX = (offset.x / size.width).coerceIn(0f, 1f)
-                            val tapY = (offset.y / size.height).coerceIn(0f, 1f)
                             if (activeColumnBounds != null) {
                                 viewModel.clearColumnFocus()
                             } else {
+                                val tapX = when {
+                                    layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL && isCropped -> {
+                                        (activeCrop.left + (offset.x / screenWidthPx.toFloat()) * activeCrop.width).coerceIn(0f, 1f)
+                                    }
+                                    else -> (offset.x / size.width).coerceIn(0f, 1f)
+                                }
+                                val tapY = when {
+                                    layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL && isCropped -> {
+                                        (activeCrop.top + (offset.y / croppedHeightPx) * activeCrop.height).coerceIn(0f, 1f)
+                                    }
+                                    else -> (offset.y / size.height).coerceIn(0f, 1f)
+                                }
                                 viewModel.focusColumnAt(pageIndex, tapX, tapY)
                             }
                         }
@@ -191,91 +279,43 @@ fun PdfPageView(
         Modifier
     }
 
-    Box(
-        modifier = pageModifier
-            .then(gestureModifier)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                translationX = offsetX
-                translationY = offsetY
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        val bitmap = pageBitmap
+    val pageContent: @Composable () -> Unit = {
         if (bitmap != null) {
-            val activeCrop = when {
-                activeColumnBounds != null -> activeColumnBounds
-                isAutoCrop -> cropBounds
-                else -> PageCropper2.CropBounds.FULL
-            }
-
-            val contentWidthRatio = activeCrop.width.coerceAtLeast(0.2f)
-            val zoomFactor = if (isAutoCrop || activeColumnBounds != null) 1f / contentWidthRatio else 1f
-
-            val contentBoxModifier = (if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
-                .graphicsLayer {
-                    if (rotationDegrees != 0) {
-                        rotationZ = rotationDegrees.toFloat()
-                    }
-                    if (isAutoCrop || activeColumnBounds != null) {
-                        scaleX = zoomFactor
-                        scaleY = zoomFactor
-                        val centerShiftX = ((activeCrop.left + activeCrop.right) / 2f - 0.5f) * size.width
-                        val centerShiftY = ((activeCrop.top + activeCrop.bottom) / 2f - 0.5f) * size.height
-                        translationX = -centerShiftX * zoomFactor
-                        translationY = -centerShiftY * zoomFactor
-                    }
-                }
-
             Box(
                 modifier = contentBoxModifier,
-                contentAlignment = Alignment.Center
+                contentAlignment = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Alignment.Center else Alignment.TopStart
             ) {
                 // Layer 1: PDF 位图底图
                 Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = "Page ${pageIndex + 1}",
-                    contentScale = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) ContentScale.Fit else ContentScale.FillWidth,
+                    contentScale = ContentScale.FillBounds,
                     colorFilter = colorFilter,
-                    modifier = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxSize()
                 )
 
                 // Layer 3: 矢量注释与交互绘制画布 (叠加于页面正上方，与页面同尺寸并同步缩放)
                 var activeRawOffsets by remember { mutableStateOf<List<Offset>>(emptyList()) }
-                val canvasDrawingModifier = if (activeTool == AnnotationTool.PEN || activeTool == AnnotationTool.HIGHLIGHTER) {
-                    Modifier.pointerInput(pageIndex, pageCount, activeTool, annotationColor, annotationStrokeWidthDp) {
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                activeRawOffsets = listOf(offset)
-                                val pt = PageCoordinateTransformer.canvasToNormalized(
-                                    offset.x, offset.y, size.width.toFloat(), size.height.toFloat()
-                                )
-                                activeStrokePoints = listOf(pt)
-                            },
-                            onDrag = { change, _ ->
-                                change.consume()
-                                activeRawOffsets = activeRawOffsets + change.position
-                                val pt = PageCoordinateTransformer.canvasToNormalized(
-                                    change.position.x, change.position.y, size.width.toFloat(), size.height.toFloat()
-                                )
-                                activeStrokePoints = activeStrokePoints + pt
-                            },
-                            onDragEnd = {
-                                commitCrossPageStroke(
-                                    pageIndex = pageIndex,
-                                    pageCount = pageCount,
-                                    rawOffsets = activeRawOffsets,
-                                    viewWidth = size.width.toFloat(),
-                                    viewHeight = size.height.toFloat(),
-                                    isHighlighter = activeTool == AnnotationTool.HIGHLIGHTER,
-                                    onAddInkAnnotation = onAddInkAnnotation
-                                )
-                                activeRawOffsets = emptyList()
-                                activeStrokePoints = emptyList()
-                            },
-                            onDragCancel = {
-                                if (activeRawOffsets.isNotEmpty()) {
+                val canvasDrawingModifier = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) {
+                    if (activeTool == AnnotationTool.PEN || activeTool == AnnotationTool.HIGHLIGHTER) {
+                        Modifier.pointerInput(pageIndex, pageCount, activeTool, annotationColor, annotationStrokeWidthDp) {
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    activeRawOffsets = listOf(offset)
+                                    val pt = PageCoordinateTransformer.canvasToNormalized(
+                                        offset.x, offset.y, size.width.toFloat(), size.height.toFloat()
+                                    )
+                                    activeStrokePoints = listOf(pt)
+                                },
+                                onDrag = { change, _ ->
+                                    change.consume()
+                                    activeRawOffsets = activeRawOffsets + change.position
+                                    val pt = PageCoordinateTransformer.canvasToNormalized(
+                                        change.position.x, change.position.y, size.width.toFloat(), size.height.toFloat()
+                                    )
+                                    activeStrokePoints = activeStrokePoints + pt
+                                },
+                                onDragEnd = {
                                     commitCrossPageStroke(
                                         pageIndex = pageIndex,
                                         pageCount = pageCount,
@@ -285,56 +325,71 @@ fun PdfPageView(
                                         isHighlighter = activeTool == AnnotationTool.HIGHLIGHTER,
                                         onAddInkAnnotation = onAddInkAnnotation
                                     )
+                                    activeRawOffsets = emptyList()
+                                    activeStrokePoints = emptyList()
+                                },
+                                onDragCancel = {
+                                    if (activeRawOffsets.isNotEmpty()) {
+                                        commitCrossPageStroke(
+                                            pageIndex = pageIndex,
+                                            pageCount = pageCount,
+                                            rawOffsets = activeRawOffsets,
+                                            viewWidth = size.width.toFloat(),
+                                            viewHeight = size.height.toFloat(),
+                                            isHighlighter = activeTool == AnnotationTool.HIGHLIGHTER,
+                                            onAddInkAnnotation = onAddInkAnnotation
+                                        )
+                                    }
+                                    activeRawOffsets = emptyList()
+                                    activeStrokePoints = emptyList()
                                 }
-                                activeRawOffsets = emptyList()
-                                activeStrokePoints = emptyList()
-                            }
-                        )
-                    }
-                } else if (activeTool == AnnotationTool.ERASER) {
-                    Modifier.pointerInput(pageIndex, pageCount) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            val w = size.width.toFloat()
-                            val h = size.height.toFloat()
-                            val startPt = PageCoordinateTransformer.canvasToNormalized(
-                                down.position.x, down.position.y, w, h
                             )
-                            onEraseAnnotation(pageIndex, startPt)
+                        }
+                    } else if (activeTool == AnnotationTool.ERASER) {
+                        Modifier.pointerInput(pageIndex, pageCount) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val w = size.width.toFloat()
+                                val h = size.height.toFloat()
+                                val startPt = PageCoordinateTransformer.canvasToNormalized(
+                                    down.position.x, down.position.y, w, h
+                                )
+                                onEraseAnnotation(pageIndex, startPt)
 
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                if (change.pressed) {
-                                    change.consume()
-                                    val currY = change.position.y
-                                    val currX = change.position.x
-                                    val targetPageIndex = when {
-                                        currY < 0 && pageIndex > 0 -> pageIndex - 1
-                                        currY > h && pageCount > 0 && pageIndex + 1 < pageCount -> pageIndex + 1
-                                        else -> pageIndex
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (change.pressed) {
+                                        change.consume()
+                                        val currY = change.position.y
+                                        val currX = change.position.x
+                                        val targetPageIndex = when {
+                                            currY < 0 && pageIndex > 0 -> pageIndex - 1
+                                            currY > h && pageCount > 0 && pageIndex + 1 < pageCount -> pageIndex + 1
+                                            else -> pageIndex
+                                        }
+                                        val normX = (currX / w).coerceIn(0f, 1f)
+                                        val normY = when {
+                                            currY < 0 && pageIndex > 0 -> (1f + currY / h).coerceIn(0f, 1f)
+                                            currY > h && pageCount > 0 && pageIndex + 1 < pageCount -> ((currY - h) / h).coerceIn(0f, 1f)
+                                            else -> (currY / h).coerceIn(0f, 1f)
+                                        }
+                                        onEraseAnnotation(targetPageIndex, NormalizedPoint(normX, normY))
+                                    } else {
+                                        break
                                     }
-                                    val normX = (currX / w).coerceIn(0f, 1f)
-                                    val normY = when {
-                                        currY < 0 && pageIndex > 0 -> (1f + currY / h).coerceIn(0f, 1f)
-                                        currY > h && pageCount > 0 && pageIndex + 1 < pageCount -> ((currY - h) / h).coerceIn(0f, 1f)
-                                        else -> (currY / h).coerceIn(0f, 1f)
-                                    }
-                                    onEraseAnnotation(targetPageIndex, NormalizedPoint(normX, normY))
-                                } else {
-                                    break
                                 }
                             }
                         }
+                    } else {
+                        Modifier
                     }
                 } else {
                     Modifier
                 }
 
                 Canvas(
-                    modifier = (if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth().height(
-                        with(density) { (bitmap.height / 1.5f).toDp() }
-                    )).then(canvasDrawingModifier)
+                    modifier = Modifier.fillMaxSize().then(canvasDrawingModifier)
                 ) {
                     val w = size.width
                     val h = size.height
@@ -366,8 +421,8 @@ fun PdfPageView(
                         }
                     }
 
-                    // 2. 绘制当前正在手绘中的活跃笔迹
-                    if (activeStrokePoints.isNotEmpty()) {
+                    // 2. 绘制当前正在手绘中的活跃笔迹 (仅在横向单页模式生效)
+                    if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL && activeStrokePoints.isNotEmpty()) {
                         val liveColor = if (activeTool == AnnotationTool.HIGHLIGHTER) {
                             Color(annotationColor).copy(alpha = 0.40f)
                         } else {
@@ -402,6 +457,51 @@ fun PdfPageView(
                     modifier = Modifier.size(28.dp)
                 )
             }
+        }
+    }
+
+    if (layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(gestureModifier)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offsetX
+                    translationY = offsetY
+                }
+        ) {
+            Box(
+                modifier = pageModifier,
+                contentAlignment = contentAlignment
+            ) {
+                pageContent()
+            }
+            if (showDivider) {
+                PageDivider(
+                    pageIndex = pageIndex,
+                    pageCount = pageCount,
+                    colorMode = colorMode,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(18.dp)
+                )
+            }
+        }
+    } else {
+        Box(
+            modifier = pageModifier
+                .then(gestureModifier)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offsetX
+                    translationY = offsetY
+                },
+            contentAlignment = contentAlignment
+        ) {
+            pageContent()
         }
     }
 }
@@ -489,3 +589,102 @@ private fun commitCrossPageStroke(
         }
     }
 }
+
+/**
+ * 纵向连续阅读模式下的页面分割线组件
+ *
+ * 在切边模式下消除连续纯白造成的视觉页界丢失，
+ * 采用高对比度分隔带、页边缘细线和居中页码胶囊，清晰呈现页面边界。
+ */
+@Composable
+fun PageDivider(
+    pageIndex: Int,
+    pageCount: Int = 0,
+    colorMode: ReadingColorMode = ReadingColorMode.NORMAL,
+    modifier: Modifier = Modifier
+) {
+    val colors = when (colorMode) {
+        ReadingColorMode.NORMAL -> PageDividerColors(
+            stripBg = Color(0xFFF1F5F9),        // Slate 100
+            edgeBorderColor = Color(0xFFE2E8F0),// Slate 200
+            centerLineColor = Color(0xFF94A3B8),// Slate 400 - high contrast
+            pillBg = Color.White,
+            pillBorderColor = Color(0xFFCBD5E1),
+            textColor = Color(0xFF475569)       // Slate 600
+        )
+        ReadingColorMode.SOFT_DARK -> PageDividerColors(
+            stripBg = Color(0xFF13161D),
+            edgeBorderColor = Color(0xFF232A37),
+            centerLineColor = Color(0xFF3E4A5E),
+            pillBg = Color(0xFF1D232F),
+            pillBorderColor = Color(0xFF333D4F),
+            textColor = Color(0xFF94A3B8)
+        )
+        ReadingColorMode.AMOLED_DARK -> PageDividerColors(
+            stripBg = Color(0xFF000000),
+            edgeBorderColor = Color(0xFF1F1F1F),
+            centerLineColor = Color(0xFF3A3A3A),
+            pillBg = Color(0xFF121212),
+            pillBorderColor = Color(0xFF2E2E2E),
+            textColor = Color(0xFF888888)
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .background(colors.stripBg),
+        contentAlignment = Alignment.Center
+    ) {
+        // 上页底边细分界线
+        HorizontalDivider(
+            modifier = Modifier.align(Alignment.TopCenter),
+            thickness = 1.dp,
+            color = colors.edgeBorderColor
+        )
+
+        // 居中主高对比度分割线
+        HorizontalDivider(
+            modifier = Modifier.fillMaxWidth(),
+            thickness = 1.dp,
+            color = colors.centerLineColor
+        )
+
+        // 下页顶边细分界线
+        HorizontalDivider(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            thickness = 1.dp,
+            color = colors.edgeBorderColor
+        )
+
+        // 居中页码标识胶囊
+        Surface(
+            shape = RoundedCornerShape(9.dp),
+            color = colors.pillBg,
+            border = BorderStroke(1.dp, colors.pillBorderColor),
+            tonalElevation = 1.dp,
+            modifier = Modifier.height(16.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Text(
+                    text = if (pageCount > 0) "第 ${pageIndex + 1} / $pageCount 页" else "第 ${pageIndex + 1} 页",
+                    fontSize = 9.sp,
+                    lineHeight = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textColor
+                )
+            }
+        }
+    }
+}
+
+private data class PageDividerColors(
+    val stripBg: Color,
+    val edgeBorderColor: Color,
+    val centerLineColor: Color,
+    val pillBg: Color,
+    val pillBorderColor: Color,
+    val textColor: Color
+)

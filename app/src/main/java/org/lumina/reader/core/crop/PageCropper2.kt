@@ -93,9 +93,9 @@ object PageCropper2 {
         val rawRight = getRightBound(pixels, width, height, avgLum)
         val rawBottom = getBottomBound(pixels, width, height, avgLum)
 
-        // 应用自适应呼吸内边距：垂直方向给予更宽裕的余量 (默认至少 3.5%)，防止文字顶部被裁削
+        // 应用自适应呼吸内边距：水平与垂直方向均衡保留边距 (默认至少 2% 呼吸感，避免文字紧贴屏幕边缘)
         val paddingX = extraPaddingRatio
-        val paddingY = if (extraPaddingRatio > 0f) max(extraPaddingRatio, 0.035f) else 0f
+        val paddingY = if (extraPaddingRatio > 0f) max(extraPaddingRatio, 0.02f) else 0f
 
         val left = (rawLeft - paddingX).coerceIn(0f, 1f)
         val top = (rawTop - paddingY).coerceIn(0f, 1f)
@@ -276,8 +276,8 @@ object PageCropper2 {
                 whiteCount++
             } else {
                 if (whiteCount >= 1) {
-                    // 底部多扩展保留余量，防止下伸部笔画被截断
-                    return min(height, y + 2 * H_LINE_SIZE).toFloat() / height
+                    // 底部多扩展保留余量，防止下伸部笔画与尾行被截断 (与顶部回退 2 个周期完全对称)
+                    return min(height, y + 3 * H_LINE_SIZE).toFloat() / height
                 }
                 whiteCount = 0
             }

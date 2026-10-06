@@ -29,6 +29,7 @@ import org.lumina.reader.core.annotation.AddAnnotationCommand
 import org.lumina.reader.core.annotation.AnnotationCommand
 import org.lumina.reader.core.annotation.AnnotationStore
 import org.lumina.reader.core.annotation.AnnotationTool
+import org.lumina.reader.core.annotation.CompoundAnnotationCommand
 import org.lumina.reader.core.annotation.DeleteAnnotationCommand
 import org.lumina.reader.core.annotation.NormalizedPoint
 import org.lumina.reader.core.annotation.PdfAnnotation
@@ -169,6 +170,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         return repository.pdfEngine.calculateCropBounds(pageIndex)
     }
 
+    fun getCachedCropBounds(pageIndex: Int): PageCropper2.CropBounds {
+        return repository.pdfEngine.getCachedCropBounds(pageIndex) ?: PageCropper2.CropBounds.FULL
+    }
+
     fun toggleAutoCrop() {
         _uiState.update { it.copy(isAutoCropEnabled = !it.isAutoCropEnabled) }
     }
@@ -282,15 +287,30 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun addInkAnnotation(pageIndex: Int, strokes: List<List<NormalizedPoint>>, isHighlighter: Boolean) {
-        if (strokes.isEmpty() || strokes.all { it.isEmpty() }) return
-        val ink = PdfAnnotation.Ink(
-            pageIndex = pageIndex,
-            color = _uiState.value.annotationColor,
-            strokeWidthDp = _uiState.value.annotationStrokeWidthDp,
-            isHighlighter = isHighlighter,
-            strokes = strokes
-        )
-        undoRedoManager.execute(AddAnnotationCommand(annotationStore, ink))
+        addMultiPageInkAnnotation(mapOf(pageIndex to strokes), isHighlighter)
+    }
+
+    fun addMultiPageInkAnnotation(pageStrokes: Map<Int, List<List<NormalizedPoint>>>, isHighlighter: Boolean) {
+        if (pageStrokes.isEmpty()) return
+        val commands = pageStrokes.mapNotNull { (pageIndex, strokes) ->
+            val validStrokes = strokes.filter { it.isNotEmpty() }
+            if (validStrokes.isEmpty()) null
+            else {
+                val ink = PdfAnnotation.Ink(
+                    pageIndex = pageIndex,
+                    color = _uiState.value.annotationColor,
+                    strokeWidthDp = _uiState.value.annotationStrokeWidthDp,
+                    isHighlighter = isHighlighter,
+                    strokes = validStrokes
+                )
+                AddAnnotationCommand(annotationStore, ink)
+            }
+        }
+        if (commands.size == 1) {
+            undoRedoManager.execute(commands[0])
+        } else if (commands.size > 1) {
+            undoRedoManager.execute(CompoundAnnotationCommand(commands))
+        }
     }
 
     fun eraseAnnotationAt(pageIndex: Int, point: NormalizedPoint) {
