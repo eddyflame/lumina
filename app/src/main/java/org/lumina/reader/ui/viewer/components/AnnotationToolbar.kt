@@ -23,9 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.lumina.reader.R
 import org.lumina.reader.core.annotation.AnnotationTool
 
 private val ANNOTATION_PALETTE = listOf(
@@ -37,10 +39,12 @@ private val ANNOTATION_PALETTE = listOf(
     0xFF212121  // 纯黑碳素
 )
 
-private val STROKE_WIDTHS = listOf(
-    2f to "细",
-    4f to "中",
-    8f to "粗"
+private data class StrokeWidthOption(val widthDp: Float, val labelResId: Int)
+
+private val STROKE_WIDTH_OPTIONS = listOf(
+    StrokeWidthOption(2f, R.string.stroke_fine),
+    StrokeWidthOption(4f, R.string.stroke_medium),
+    StrokeWidthOption(8f, R.string.stroke_thick)
 )
 
 /**
@@ -100,21 +104,21 @@ fun AnnotationToolbar(
                     ) {
                         ToolIconButton(
                             icon = Icons.Default.Edit,
-                            label = "手写笔",
+                            label = stringResource(R.string.tool_pen),
                             isSelected = activeTool == AnnotationTool.PEN,
                             onClick = { onToolChange(AnnotationTool.PEN) }
                         )
 
                         ToolIconButton(
                             icon = Icons.Default.BorderColor,
-                            label = "荧光笔",
+                            label = stringResource(R.string.tool_highlighter),
                             isSelected = activeTool == AnnotationTool.HIGHLIGHTER,
                             onClick = { onToolChange(AnnotationTool.HIGHLIGHTER) }
                         )
 
                         ToolIconButton(
                             icon = Icons.AutoMirrored.Filled.Backspace,
-                            label = "橡皮擦",
+                            label = stringResource(R.string.tool_eraser),
                             isSelected = activeTool == AnnotationTool.ERASER,
                             onClick = { onToolChange(AnnotationTool.ERASER) }
                         )
@@ -145,8 +149,8 @@ fun AnnotationToolbar(
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    STROKE_WIDTHS.forEach { (width, label) ->
-                                        val isSelected = currentStrokeWidthDp == width
+                                    STROKE_WIDTH_OPTIONS.forEach { opt ->
+                                        val isSelected = currentStrokeWidthDp == opt.widthDp
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(8.dp))
@@ -154,11 +158,11 @@ fun AnnotationToolbar(
                                                     if (isSelected) MaterialTheme.colorScheme.primary
                                                     else Color.Transparent
                                                 )
-                                                .clickable { onStrokeWidthChange(width) }
+                                                .clickable { onStrokeWidthChange(opt.widthDp) }
                                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                                         ) {
                                             Text(
-                                                text = label,
+                                                text = stringResource(opt.labelResId),
                                                 fontSize = 11.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 color = if (isSelected) MaterialTheme.colorScheme.onPrimary
@@ -183,7 +187,7 @@ fun AnnotationToolbar(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.Undo,
-                                contentDescription = "撤销",
+                                contentDescription = stringResource(R.string.action_undo),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -195,7 +199,7 @@ fun AnnotationToolbar(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.Redo,
-                                contentDescription = "重做",
+                                contentDescription = stringResource(R.string.action_redo),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -206,7 +210,7 @@ fun AnnotationToolbar(
                         ) {
                             Icon(
                                 Icons.Default.DeleteSweep,
-                                contentDescription = "清空本页",
+                                contentDescription = stringResource(R.string.action_clear_page),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -221,7 +225,7 @@ fun AnnotationToolbar(
                         ) {
                             Icon(
                                 Icons.Default.Check,
-                                contentDescription = "完成注释",
+                                contentDescription = stringResource(R.string.action_finish_annotation),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -275,8 +279,8 @@ fun AnnotationToolbar(
     if (showClearConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text("清空本页注释") },
-            text = { Text("确定要清除当前页的所有手绘笔迹吗？此操作可通过撤销按钮恢复。") },
+            title = { Text(stringResource(R.string.clear_annotations_title)) },
+            text = { Text(stringResource(R.string.clear_annotations_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -284,12 +288,12 @@ fun AnnotationToolbar(
                         showClearConfirm = false
                     }
                 ) {
-                    Text("清空", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_clear), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )

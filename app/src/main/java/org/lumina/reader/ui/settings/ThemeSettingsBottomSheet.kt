@@ -20,9 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.lumina.reader.R
 import org.lumina.reader.data.preferences.AppThemeMode
 import org.lumina.reader.data.preferences.DarkThemeStyle
 import org.lumina.reader.data.preferences.ThemeSettings
@@ -78,12 +80,12 @@ fun ThemeSettingsBottomSheet(
                 Spacer(modifier = Modifier.width(14.dp))
                 Column {
                     Text(
-                        text = "外观与个性化",
+                        text = stringResource(R.string.appearance_and_theme),
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "自定义 Lumina 界面色彩与夜间质感",
+                        text = stringResource(R.string.appearance_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -95,7 +97,7 @@ fun ThemeSettingsBottomSheet(
 
             // 主题模式选择
             Text(
-                text = "主题模式",
+                text = stringResource(R.string.theme_mode),
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp)
@@ -103,24 +105,28 @@ fun ThemeSettingsBottomSheet(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 ThemeModeOptionCard(
-                    title = "跟随系统",
-                    subtitle = if (isSystemDark) "当前系统处于深色模式" else "当前系统处于浅色模式",
+                    title = stringResource(R.string.theme_follow_system),
+                    subtitle = if (isSystemDark) {
+                        stringResource(R.string.theme_system_dark_active)
+                    } else {
+                        stringResource(R.string.theme_system_light_active)
+                    },
                     icon = Icons.Default.BrightnessAuto,
                     selected = themeSettings.themeMode == AppThemeMode.SYSTEM,
                     onClick = { onThemeModeSelected(AppThemeMode.SYSTEM) }
                 )
 
                 ThemeModeOptionCard(
-                    title = "日间浅色",
-                    subtitle = "经典清爽明亮界面，通透舒适",
+                    title = stringResource(R.string.theme_light),
+                    subtitle = stringResource(R.string.theme_light_desc),
                     icon = Icons.Default.LightMode,
                     selected = themeSettings.themeMode == AppThemeMode.LIGHT,
                     onClick = { onThemeModeSelected(AppThemeMode.LIGHT) }
                 )
 
                 ThemeModeOptionCard(
-                    title = "夜间暗黑",
-                    subtitle = "沉浸护眼深色界面，夜间无眩光",
+                    title = stringResource(R.string.theme_dark),
+                    subtitle = stringResource(R.string.theme_dark_desc),
                     icon = Icons.Default.DarkMode,
                     selected = themeSettings.themeMode == AppThemeMode.DARK,
                     onClick = { onThemeModeSelected(AppThemeMode.DARK) }
@@ -131,7 +137,7 @@ fun ThemeSettingsBottomSheet(
 
             // 深色质感风格细分 (在深色激活或系统为深色时提供选择)
             Text(
-                text = "深色质感风格",
+                text = stringResource(R.string.dark_style_title),
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = if (isEffectivelyDark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 12.dp)
@@ -142,8 +148,8 @@ fun ThemeSettingsBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 DarkStyleOptionCard(
-                    title = "板岩深灰",
-                    subtitle = "柔和护眼·质感层次",
+                    title = stringResource(R.string.dark_style_slate),
+                    subtitle = stringResource(R.string.dark_style_slate_desc),
                     previewColor = Color(0xFF0F172A),
                     selected = themeSettings.darkThemeStyle == DarkThemeStyle.SLATE,
                     enabled = true,
@@ -152,8 +158,8 @@ fun ThemeSettingsBottomSheet(
                 )
 
                 DarkStyleOptionCard(
-                    title = "极致纯黑",
-                    subtitle = "AMOLED 纯黑省电",
+                    title = stringResource(R.string.dark_style_amoled),
+                    subtitle = stringResource(R.string.dark_style_amoled_desc),
                     previewColor = Color(0xFF000000),
                     selected = themeSettings.darkThemeStyle == DarkThemeStyle.AMOLED,
                     enabled = true,
@@ -274,7 +280,7 @@ private fun DarkStyleOptionCard(
                 if (selected) {
                     Icon(
                         Icons.Default.Check,
-                        contentDescription = "已选",
+                        contentDescription = stringResource(R.string.selected),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )

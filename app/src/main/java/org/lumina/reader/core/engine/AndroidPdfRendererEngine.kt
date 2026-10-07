@@ -168,16 +168,20 @@ class AndroidPdfRendererEngine(
         if (total == 0) return@withContext emptyList()
 
         // 默认按章节/分页生成快速索引大纲
+        val isZh = java.util.Locale.getDefault().language.startsWith("zh")
         val step = if (total > 50) 10 else 5
         val list = mutableListOf<PdfOutlineItem>()
-        list.add(PdfOutlineItem("第 1 页 · 起始页", 0, level = 0))
+        val startLabel = if (isZh) "第 1 页 · 起始页" else "Page 1 · Start"
+        list.add(PdfOutlineItem(startLabel, 0, level = 0))
 
         for (p in step until total step step) {
-            list.add(PdfOutlineItem("第 ${p + 1} 页", p, level = 0))
+            val pageLabel = if (isZh) "第 ${p + 1} 页" else "Page ${p + 1}"
+            list.add(PdfOutlineItem(pageLabel, p, level = 0))
         }
 
         if (total > 1 && (total - 1) % step != 0) {
-            list.add(PdfOutlineItem("第 $total 页 · 结尾", total - 1, level = 0))
+            val endLabel = if (isZh) "第 $total 页 · 结尾" else "Page $total · End"
+            list.add(PdfOutlineItem(endLabel, total - 1, level = 0))
         }
 
         list

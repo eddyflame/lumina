@@ -25,9 +25,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.lumina.reader.R
 import org.lumina.reader.core.model.PageEditSpec
 import org.lumina.reader.ui.viewer.ViewerViewModel
 
@@ -61,11 +63,11 @@ fun PageOrganizerScreen(
                 title = {
                     Column {
                         Text(
-                            text = "页面组织与编辑",
+                            text = stringResource(R.string.page_organizer),
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
-                            text = "共 ${pageSpecs.size} 页 · 点击任意页直接跳转",
+                            text = stringResource(R.string.page_organizer_subtitle, pageSpecs.size),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -75,7 +77,7 @@ fun PageOrganizerScreen(
                     IconButton(onClick = onClose) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回"
+                            contentDescription = stringResource(R.string.action_back)
                         )
                     }
                 },
@@ -83,14 +85,14 @@ fun PageOrganizerScreen(
                     IconButton(onClick = { onRotateAll(90) }) {
                         Icon(
                             Icons.AutoMirrored.Filled.RotateRight,
-                            contentDescription = "全部顺时针旋转90°",
+                            contentDescription = stringResource(R.string.rotate_all_clockwise),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = { showResetConfirmDialog = true }) {
                         Icon(
                             Icons.Default.RestartAlt,
-                            contentDescription = "重置修改",
+                            contentDescription = stringResource(R.string.reset_modifications),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -98,7 +100,7 @@ fun PageOrganizerScreen(
                         IconButton(onClick = onSave) {
                             Icon(
                                 Icons.Default.Save,
-                                contentDescription = "保存修改",
+                                contentDescription = stringResource(R.string.save_modifications),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -147,8 +149,8 @@ fun PageOrganizerScreen(
     showDeleteConfirmDialog?.let { targetVirtualIndex ->
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = null },
-            title = { Text("删除第 ${targetVirtualIndex + 1} 页") },
-            text = { Text("确定要从当前文档视图中移除此页吗？(可通过重置功能恢复原貌)") },
+            title = { Text(stringResource(R.string.delete_page_title, targetVirtualIndex + 1)) },
+            text = { Text(stringResource(R.string.delete_page_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -156,12 +158,12 @@ fun PageOrganizerScreen(
                         showDeleteConfirmDialog = null
                     }
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmDialog = null }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -171,8 +173,8 @@ fun PageOrganizerScreen(
     if (showResetConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showResetConfirmDialog = false },
-            title = { Text("重置页面编辑") },
-            text = { Text("确定要放弃对页面的所有旋转、排序与删除修改，恢复初始文档结构吗？") },
+            title = { Text(stringResource(R.string.reset_organizer_title)) },
+            text = { Text(stringResource(R.string.reset_organizer_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -180,12 +182,12 @@ fun PageOrganizerScreen(
                         showResetConfirmDialog = false
                     }
                 ) {
-                    Text("重置", color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.action_reset), color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showResetConfirmDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -246,7 +248,7 @@ private fun PageThumbnailCard(
                 if (bmp != null) {
                     Image(
                         bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Page ${virtualIndex + 1}",
+                        contentDescription = stringResource(R.string.page_thumbnail_desc, virtualIndex + 1),
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .fillMaxSize()
@@ -289,14 +291,14 @@ private fun PageThumbnailCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "第 ${virtualIndex + 1} 页",
+                    text = stringResource(R.string.page_number_format, virtualIndex + 1),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (isCurrentPage) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
                 if (virtualIndex != spec.originalPageIndex) {
                     Text(
-                        text = "原 P${spec.originalPageIndex + 1}",
+                        text = stringResource(R.string.original_page_format, spec.originalPageIndex + 1),
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -318,7 +320,7 @@ private fun PageThumbnailCard(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.RotateLeft,
-                        contentDescription = "逆时针旋转90°",
+                        contentDescription = stringResource(R.string.rotate_counter_clockwise),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -331,7 +333,7 @@ private fun PageThumbnailCard(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.RotateRight,
-                        contentDescription = "顺时针旋转90°",
+                        contentDescription = stringResource(R.string.rotate_clockwise),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -345,7 +347,7 @@ private fun PageThumbnailCard(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "前移一页",
+                        contentDescription = stringResource(R.string.move_page_forward),
                         modifier = Modifier.size(16.dp),
                         tint = if (canMoveLeft) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                     )
@@ -359,7 +361,7 @@ private fun PageThumbnailCard(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "后移一页",
+                        contentDescription = stringResource(R.string.move_page_backward),
                         modifier = Modifier.size(16.dp),
                         tint = if (canMoveRight) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                     )
@@ -373,7 +375,7 @@ private fun PageThumbnailCard(
                 ) {
                     Icon(
                         Icons.Default.DeleteOutline,
-                        contentDescription = "删除该页",
+                        contentDescription = stringResource(R.string.delete_page),
                         modifier = Modifier.size(16.dp),
                         tint = if (canDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                     )

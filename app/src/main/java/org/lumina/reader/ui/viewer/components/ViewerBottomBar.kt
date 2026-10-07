@@ -6,9 +6,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.lumina.reader.R
 import org.lumina.reader.core.model.ReadingLayoutMode
 import kotlin.math.roundToInt
 
@@ -59,7 +61,7 @@ fun ViewerBottomBar(
                             modifier = Modifier.padding(end = 6.dp)
                         ) {
                             Text(
-                                text = "Auto-Crop ON",
+                                text = stringResource(R.string.auto_crop_on),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -72,7 +74,11 @@ fun ViewerBottomBar(
                         color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
-                            text = if (layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "纵向连续" else "横向单页",
+                            text = if (layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                                stringResource(R.string.layout_badge_continuous)
+                            } else {
+                                stringResource(R.string.layout_badge_single)
+                            },
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)

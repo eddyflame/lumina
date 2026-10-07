@@ -19,6 +19,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.res.stringResource
+import org.lumina.reader.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -288,7 +290,7 @@ fun PdfPageView(
                 // Layer 1: PDF 位图底图
                 Image(
                     bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Page ${pageIndex + 1}",
+                    contentDescription = stringResource(R.string.page_thumbnail_desc, pageIndex + 1),
                     contentScale = ContentScale.FillBounds,
                     colorFilter = colorFilter,
                     modifier = Modifier.fillMaxSize()
@@ -669,7 +671,11 @@ fun PageDivider(
                 modifier = Modifier.padding(horizontal = 8.dp)
             ) {
                 Text(
-                    text = if (pageCount > 0) "第 ${pageIndex + 1} / $pageCount 页" else "第 ${pageIndex + 1} 页",
+                    text = if (pageCount > 0) {
+                        stringResource(R.string.page_divider_format, pageIndex + 1, pageCount)
+                    } else {
+                        stringResource(R.string.page_divider_single, pageIndex + 1)
+                    },
                     fontSize = 9.sp,
                     lineHeight = 10.sp,
                     fontWeight = FontWeight.Medium,

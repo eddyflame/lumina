@@ -14,7 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import org.lumina.reader.R
 import org.lumina.reader.core.annotation.AnnotationTool
 import org.lumina.reader.core.model.ReadingColorMode
 import org.lumina.reader.core.model.ReadingLayoutMode
@@ -59,7 +61,7 @@ fun ViewerTopBar(
                 IconButton(onClick = onBack) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回书架"
+                        contentDescription = stringResource(R.string.back_to_shelf)
                     )
                 }
             },
@@ -67,7 +69,7 @@ fun ViewerTopBar(
                 // 1. 目录大纲抽屉唤起按钮
                 ViewerActionButton(
                     icon = Icons.AutoMirrored.Filled.FormatListBulleted,
-                    contentDescription = "目录大纲",
+                    contentDescription = stringResource(R.string.outline_drawer),
                     isActive = isDrawerOpen || uiState.isOutlineDrawerOpen,
                     onClick = onToggleDrawer
                 )
@@ -75,7 +77,11 @@ fun ViewerTopBar(
                 // 2. 智能切白边
                 ViewerActionButton(
                     icon = Icons.Default.Crop,
-                    contentDescription = if (uiState.isAutoCropEnabled) "已开启智能裁切" else "已关闭智能裁切",
+                    contentDescription = if (uiState.isAutoCropEnabled) {
+                        stringResource(R.string.crop_enabled)
+                    } else {
+                        stringResource(R.string.crop_disabled)
+                    },
                     isActive = uiState.isAutoCropEnabled,
                     onClick = onToggleAutoCrop
                 )
@@ -83,7 +89,11 @@ fun ViewerTopBar(
                 // 3. 护眼暗色模式
                 ViewerActionButton(
                     icon = if (uiState.colorMode != ReadingColorMode.NORMAL) Icons.Default.DarkMode else Icons.Default.LightMode,
-                    contentDescription = if (uiState.colorMode != ReadingColorMode.NORMAL) "退出暗色模式" else "护眼暗色模式",
+                    contentDescription = if (uiState.colorMode != ReadingColorMode.NORMAL) {
+                        stringResource(R.string.dark_mode_exit)
+                    } else {
+                        stringResource(R.string.dark_mode_enter)
+                    },
                     isActive = uiState.colorMode != ReadingColorMode.NORMAL,
                     onClick = onToggleColorMode
                 )
@@ -91,7 +101,11 @@ fun ViewerTopBar(
                 // 4. 文档注释与涂鸦工具开关
                 ViewerActionButton(
                     icon = Icons.Default.Draw,
-                    contentDescription = if (uiState.annotationTool != AnnotationTool.NONE) "退出注释模式" else "进入注释模式",
+                    contentDescription = if (uiState.annotationTool != AnnotationTool.NONE) {
+                        stringResource(R.string.annotation_mode_exit)
+                    } else {
+                        stringResource(R.string.annotation_mode_enter)
+                    },
                     isActive = uiState.annotationTool != AnnotationTool.NONE,
                     onClick = onToggleAnnotationMode
                 )
@@ -118,7 +132,7 @@ fun ViewerTopBar(
                 } else {
                     ViewerActionButton(
                         icon = Icons.Default.SaveAs,
-                        contentDescription = "另存为新副本",
+                        contentDescription = stringResource(R.string.save_as_document),
                         isActive = hasModifications,
                         onClick = onSaveAsDocument
                     )
@@ -128,7 +142,7 @@ fun ViewerTopBar(
                 Box {
                     ViewerActionButton(
                         icon = Icons.Default.MoreVert,
-                        contentDescription = "更多设置",
+                        contentDescription = stringResource(R.string.more_settings),
                         isActive = isMenuOpen,
                         onClick = { isMenuOpen = true }
                     )
@@ -138,7 +152,7 @@ fun ViewerTopBar(
                         onDismissRequest = { isMenuOpen = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("页面组织与编辑") },
+                            text = { Text(stringResource(R.string.page_organizer)) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.DashboardCustomize,
@@ -155,7 +169,15 @@ fun ViewerTopBar(
                         HorizontalDivider()
 
                         DropdownMenuItem(
-                            text = { Text(if (uiState.isFullscreen) "退出全屏模式" else "全屏沉浸模式") },
+                            text = {
+                                Text(
+                                    if (uiState.isFullscreen) {
+                                        stringResource(R.string.fullscreen_exit)
+                                    } else {
+                                        stringResource(R.string.fullscreen_enter)
+                                    }
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     if (uiState.isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
@@ -173,7 +195,15 @@ fun ViewerTopBar(
                         )
 
                         DropdownMenuItem(
-                            text = { Text(if (uiState.isLandscape) "恢复竖屏模式" else "切换横屏阅读") },
+                            text = {
+                                Text(
+                                    if (uiState.isLandscape) {
+                                        stringResource(R.string.landscape_exit)
+                                    } else {
+                                        stringResource(R.string.landscape_enter)
+                                    }
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     if (uiState.isLandscape) Icons.Default.StayCurrentPortrait else Icons.Default.StayCurrentLandscape,
@@ -192,7 +222,13 @@ fun ViewerTopBar(
 
                         DropdownMenuItem(
                             text = {
-                                Text(if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) "排版: 横向单页翻页" else "排版: 纵向连续瀑布流")
+                                Text(
+                                    if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                                        stringResource(R.string.layout_single_page)
+                                    } else {
+                                        stringResource(R.string.layout_continuous)
+                                    }
+                                )
                             },
                             leadingIcon = {
                                 Icon(
@@ -213,7 +249,7 @@ fun ViewerTopBar(
                         HorizontalDivider()
 
                         DropdownMenuItem(
-                            text = { Text("跳转到指定页") },
+                            text = { Text(stringResource(R.string.jump_to_page)) },
                             leadingIcon = { Icon(Icons.Default.Numbers, contentDescription = null) },
                             onClick = {
                                 isMenuOpen = false
@@ -222,7 +258,7 @@ fun ViewerTopBar(
                         )
 
                         DropdownMenuItem(
-                            text = { Text("文档信息") },
+                            text = { Text(stringResource(R.string.document_info)) },
                             leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) },
                             onClick = {
                                 isMenuOpen = false
@@ -233,7 +269,7 @@ fun ViewerTopBar(
                         HorizontalDivider()
 
                         DropdownMenuItem(
-                            text = { Text("关于应用") },
+                            text = { Text(stringResource(R.string.about_app)) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.Info,

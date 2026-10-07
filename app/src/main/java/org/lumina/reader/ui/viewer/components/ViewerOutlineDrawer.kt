@@ -9,9 +9,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.lumina.reader.R
 import org.lumina.reader.core.model.PdfOutlineItem
 
 @Composable
@@ -34,11 +36,11 @@ fun ViewerOutlineDrawerSheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "目录大纲",
+                text = stringResource(R.string.outline_drawer),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
             )
             Text(
-                text = "共 $pageCount 页",
+                text = stringResource(R.string.total_pages_count, pageCount),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -61,13 +63,13 @@ fun ViewerOutlineDrawerSheet(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "该文档未包含目录大纲",
+                    text = stringResource(R.string.no_outlines_found),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "可使用底部滑块或跳转功能快速翻页",
+                    text = stringResource(R.string.no_outlines_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
