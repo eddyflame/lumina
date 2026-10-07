@@ -19,10 +19,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.lumina.reader.R
 import org.lumina.reader.data.db.RecentDocument
 import org.lumina.reader.ui.settings.ThemeSettingsBottomSheet
 import org.lumina.reader.ui.viewer.ViewerViewModel
@@ -67,7 +69,7 @@ fun ShelfScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "Next-Gen PDF Reader",
+                            text = stringResource(R.string.app_subtitle),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -77,14 +79,14 @@ fun ShelfScreen(
                     IconButton(onClick = { showThemeSheet = true }) {
                         Icon(
                             Icons.Default.Palette,
-                            contentDescription = "外观主题",
+                            contentDescription = stringResource(R.string.theme_settings),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = { showAboutDialog = true }) {
                         Icon(
                             Icons.Default.Info,
-                            contentDescription = "关于软件",
+                            contentDescription = stringResource(R.string.about_app),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -92,7 +94,7 @@ fun ShelfScreen(
                         IconButton(onClick = { showClearConfirmDialog = true }) {
                             Icon(
                                 Icons.Default.DeleteSweep,
-                                contentDescription = "清空书架",
+                                contentDescription = stringResource(R.string.clear_bookshelf),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -106,8 +108,8 @@ fun ShelfScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { pdfPickerLauncher.launch(arrayOf("application/pdf")) },
-                icon = { Icon(Icons.Default.Add, contentDescription = "打开 PDF") },
-                text = { Text("打开文档", fontWeight = FontWeight.Bold) },
+                icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.open_pdf)) },
+                text = { Text(stringResource(R.string.action_open_document), fontWeight = FontWeight.Bold) },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             )
@@ -126,12 +128,12 @@ fun ShelfScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("搜索最近阅读文档...") },
+                        placeholder = { Text(stringResource(R.string.search_recent_placeholder)) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "清除搜索")
+                                    Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.clear_search))
                                 }
                             }
                         },
@@ -178,12 +180,12 @@ fun ShelfScreen(
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
                             Text(
-                                text = "从存储选择 PDF",
+                                text = stringResource(R.string.choose_pdf_from_storage),
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "支持系统文件、微信、邮件与下载附件",
+                                text = stringResource(R.string.storage_picker_hint),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -195,7 +197,11 @@ fun ShelfScreen(
             // 最近文档标题栏
             item {
                 Text(
-                    text = if (filteredList.isEmpty()) "阅读历史" else "最近阅读 (${filteredList.size})",
+                    text = if (filteredList.isEmpty()) {
+                        stringResource(R.string.reading_history)
+                    } else {
+                        stringResource(R.string.recent_reading_count, filteredList.size)
+                    },
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     modifier = Modifier.padding(top = 8.dp)
                 )
@@ -219,7 +225,11 @@ fun ShelfScreen(
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = if (searchQuery.isNotBlank()) "未找到相关文档" else "暂无阅读记录，点击上方导入 PDF",
+                                text = if (searchQuery.isNotBlank()) {
+                                    stringResource(R.string.no_matching_documents)
+                                } else {
+                                    stringResource(R.string.no_recent_documents_hint)
+                                },
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 14.sp
                             )
@@ -255,8 +265,8 @@ fun ShelfScreen(
     if (showClearConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showClearConfirmDialog = false },
-            title = { Text("清空书架记录") },
-            text = { Text("确定要清空所有最近阅读记录吗？此操作仅清除记录，不会删除手机本地的 PDF 原始文件。") },
+            title = { Text(stringResource(R.string.clear_history_title)) },
+            text = { Text(stringResource(R.string.clear_history_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -265,12 +275,12 @@ fun ShelfScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("清空")
+                    Text(stringResource(R.string.action_clear))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirmDialog = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -291,6 +301,7 @@ fun RecentDocumentCard(
     onDelete: () -> Unit
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -336,7 +347,7 @@ fun RecentDocumentCard(
                         if (doc.isPinned) {
                             Icon(
                                 Icons.Default.PushPin,
-                                contentDescription = "置顶",
+                                contentDescription = stringResource(R.string.pinned),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
                                     .size(14.dp)
@@ -353,7 +364,7 @@ fun RecentDocumentCard(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "${doc.progressFormatted} · ${doc.timeFormatted}",
+                        text = "${doc.getProgressFormatted(context)} · ${doc.getTimeFormatted(context)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -379,7 +390,7 @@ fun RecentDocumentCard(
                 IconButton(onClick = { isMenuOpen = true }) {
                     Icon(
                         Icons.Default.MoreVert,
-                        contentDescription = "选项",
+                        contentDescription = stringResource(R.string.action_options),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -389,7 +400,15 @@ fun RecentDocumentCard(
                     onDismissRequest = { isMenuOpen = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text(if (doc.isPinned) "取消置顶" else "置顶文档") },
+                        text = {
+                            Text(
+                                if (doc.isPinned) {
+                                    stringResource(R.string.unpin_document)
+                                } else {
+                                    stringResource(R.string.pin_document)
+                                }
+                            )
+                        },
                         leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
                         onClick = {
                             isMenuOpen = false
@@ -397,7 +416,7 @@ fun RecentDocumentCard(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("从书架移除", color = MaterialTheme.colorScheme.error) },
+                        text = { Text(stringResource(R.string.remove_from_shelf), color = MaterialTheme.colorScheme.error) },
                         leadingIcon = {
                             Icon(
                                 Icons.Default.Delete,

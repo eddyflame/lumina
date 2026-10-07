@@ -14,11 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.lumina.reader.R
 import org.lumina.reader.core.model.PdfDocumentInfo
 
 @Composable
@@ -32,11 +34,11 @@ fun JumpPageDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("跳转页面") },
+        title = { Text(stringResource(R.string.jump_dialog_title)) },
         text = {
             Column {
                 Text(
-                    text = "请输入目标页码 (1 ~ $totalPages)",
+                    text = stringResource(R.string.jump_dialog_prompt, totalPages),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -46,7 +48,7 @@ fun JumpPageDialog(
                     onValueChange = { input ->
                         jumpTargetPageText = input.filter { it.isDigit() }
                     },
-                    label = { Text("页码") },
+                    label = { Text(stringResource(R.string.page_input_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
@@ -73,12 +75,12 @@ fun JumpPageDialog(
                     }
                 }
             ) {
-                Text("跳转")
+                Text(stringResource(R.string.action_jump))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.action_cancel))
             }
         }
     )
@@ -92,21 +94,21 @@ fun DocInfoDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("文档信息") },
+        title = { Text(stringResource(R.string.document_info)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("名称: ${docInfo.title}", style = MaterialTheme.typography.bodyMedium)
-                Text("总页数: ${docInfo.pageCount} 页", style = MaterialTheme.typography.bodyMedium)
-                Text("当前阅读: 第 ${currentPageIndex + 1} 页", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.doc_info_name, docInfo.title), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.doc_info_total_pages, docInfo.pageCount), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.doc_info_current_page, currentPageIndex + 1), style = MaterialTheme.typography.bodyMedium)
                 if (docInfo.fileSize > 0) {
                     val sizeMb = String.format("%.2f MB", docInfo.fileSize / (1024f * 1024f))
-                    Text("文件大小: $sizeMb", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.doc_info_size, sizeMb), style = MaterialTheme.typography.bodyMedium)
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("确定")
+                Text(stringResource(R.string.action_confirm))
             }
         }
     )
@@ -182,7 +184,7 @@ fun AboutAppDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "软件名称",
+                                text = stringResource(R.string.app_name_label),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -197,7 +199,7 @@ fun AboutAppDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "软件版本",
+                                text = stringResource(R.string.version_label),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -212,7 +214,7 @@ fun AboutAppDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "作者",
+                                text = stringResource(R.string.author_label),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -227,7 +229,7 @@ fun AboutAppDialog(
                 }
 
                 Text(
-                    text = "专注现代护眼阅读与原位矢量批注的新一代 PDF 阅读器。支持智能裁白边、连续阅读无缝书写、多功能橡皮擦与不破坏原文件的副本安全另存为机制。",
+                    text = stringResource(R.string.about_app_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 18.sp
@@ -236,7 +238,7 @@ fun AboutAppDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("确定")
+                Text(stringResource(R.string.action_confirm))
             }
         }
     )

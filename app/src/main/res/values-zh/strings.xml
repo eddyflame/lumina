@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App & General -->
+    <string name="app_name">Lumina</string>
+    <string name="app_description">极简、现代、高性能的原位矢量批注 PDF 阅读器</string>
+    <string name="app_subtitle">Next-Gen PDF Reader</string>
+    <string name="about_app_desc">专注现代护眼阅读与原位矢量批注的新一代 PDF 阅读器。支持智能裁白边、连续阅读无缝书写、多功能橡皮擦与不破坏原文件的副本安全另存为机制。</string>
+    <string name="app_name_label">软件名称</string>
+    <string name="version_label">软件版本</string>
+    <string name="author_label">作者</string>
+    <string name="action_open_document">打开文档</string>
+    <string name="open_pdf">打开 PDF</string>
+    <string name="action_clear">清空</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_back">返回</string>
+    <string name="action_delete">删除</string>
+    <string name="action_reset">重置</string>
+    <string name="action_options">选项</string>
+
+    <!-- Shelf Screen -->
+    <string name="choose_pdf_from_storage">从存储选择 PDF</string>
+    <string name="storage_picker_hint">支持系统文件、微信、邮件与下载附件</string>
+    <string name="search_recent_placeholder">搜索最近阅读文档…</string>
+    <string name="clear_search">清除搜索</string>
+    <string name="theme_settings">外观主题</string>
+    <string name="about_app">关于软件</string>
+    <string name="clear_bookshelf">清空书架</string>
+    <string name="reading_history">阅读历史</string>
+    <string name="recent_documents">最近阅读</string>
+    <string name="recent_reading_count">最近阅读 (%1$d)</string>
+    <string name="no_matching_documents">未找到相关文档</string>
+    <string name="no_recent_documents">暂无阅读历史，点击上方按钮打开 PDF 文档</string>
+    <string name="no_recent_documents_hint">暂无阅读记录，点击上方导入 PDF</string>
+    <string name="clear_history_title">清空书架记录</string>
+    <string name="clear_history_message">确定要清空所有最近阅读记录吗？此操作仅清除记录，不会删除手机本地的 PDF 原始文件。</string>
+    <string name="pinned">置顶</string>
+    <string name="pin_document">置顶文档</string>
+    <string name="unpin_document">取消置顶</string>
+    <string name="remove_from_shelf">从书架移除</string>
+
+    <!-- Recent Document Card Formatting -->
+    <string name="recent_progress_format">%1$d%% · 第 %2$d / %3$d 页</string>
+    <string name="reading_progress">进度：%1$d / %2$d 页</string>
+    <string name="time_just_now">刚刚</string>
+    <string name="time_minutes_ago">%1$d 分钟前</string>
+    <string name="time_hours_ago">%1$d 小时前</string>
+    <string name="time_days_ago">%1$d 天前</string>
+
+    <!-- Theme Settings Bottom Sheet -->
+    <string name="appearance_and_theme">外观与个性化</string>
+    <string name="appearance_subtitle">自定义 Lumina 界面色彩与夜间质感</string>
+    <string name="theme_mode">主题模式</string>
+    <string name="theme_follow_system">跟随系统</string>
+    <string name="theme_system_dark_active">当前系统处于深色模式</string>
+    <string name="theme_system_light_active">当前系统处于浅色模式</string>
+    <string name="theme_light">日间浅色</string>
+    <string name="theme_light_desc">经典清爽明亮界面，通透舒适</string>
+    <string name="theme_dark">夜间暗黑</string>
+    <string name="theme_dark_desc">沉浸护眼深色界面，夜间无眩光</string>
+    <string name="dark_style_title">深色质感风格</string>
+    <string name="dark_style_slate">板岩深灰</string>
+    <string name="dark_style_slate_desc">柔和护眼·质感层次</string>
+    <string name="dark_style_amoled">极致纯黑</string>
+    <string name="dark_style_amoled_desc">AMOLED 纯黑省电</string>
+    <string name="selected">已选</string>
+
+    <!-- Viewer Top Bar -->
+    <string name="back_to_shelf">返回书架</string>
+    <string name="outline_drawer">目录大纲</string>
+    <string name="crop_enabled">已开启智能裁切</string>
+    <string name="crop_disabled">已关闭智能裁切</string>
+    <string name="column_focus">分栏聚焦</string>
+    <string name="dark_mode_exit">退出暗色模式</string>
+    <string name="dark_mode_enter">护眼暗色模式</string>
+    <string name="annotation_mode_exit">退出注释模式</string>
+    <string name="annotation_mode_enter">进入注释模式</string>
+    <string name="save_as_document">另存为新副本</string>
+    <string name="more_settings">更多设置</string>
+    <string name="page_organizer">页面组织与编辑</string>
+    <string name="fullscreen_enter">全屏沉浸模式</string>
+    <string name="fullscreen_exit">退出全屏模式</string>
+    <string name="landscape_enter">切换横屏阅读</string>
+    <string name="landscape_exit">恢复竖屏模式</string>
+    <string name="layout_single_page">排版: 横向单页翻页</string>
+    <string name="layout_continuous">排版: 纵向连续瀑布流</string>
+    <string name="jump_to_page">跳转到指定页</string>
+    <string name="document_info">文档信息</string>
+
+    <!-- Viewer Bottom Bar -->
+    <string name="layout_badge_continuous">纵向连续</string>
+    <string name="layout_badge_single">横向单页</string>
+    <string name="auto_crop_on">裁切开</string>
+
+    <!-- Annotation Toolbar -->
+    <string name="tool_pen">手写笔</string>
+    <string name="tool_highlighter">荧光笔</string>
+    <string name="tool_eraser">橡皮擦</string>
+    <string name="stroke_fine">细</string>
+    <string name="stroke_medium">中</string>
+    <string name="stroke_thick">粗</string>
+    <string name="action_undo">撤销</string>
+    <string name="action_redo">重做</string>
+    <string name="action_clear_page">清空本页</string>
+    <string name="action_finish_annotation">完成注释</string>
+    <string name="clear_annotations_title">清空本页注释</string>
+    <string name="clear_annotations_message">确定要清除当前页的所有手绘笔迹吗？此操作可通过撤销按钮恢复。</string>
+
+    <!-- Page Organizer Screen -->
+    <string name="page_organizer_subtitle">共 %1$d 页 · 点击任意页直接跳转</string>
+    <string name="rotate_all_clockwise">全部顺时针旋转90°</string>
+    <string name="reset_modifications">重置修改</string>
+    <string name="save_modifications">保存修改</string>
+    <string name="delete_page_title">删除第 %1$d 页</string>
+    <string name="delete_page_message">确定要从当前文档视图中移除此页吗？(可通过重置功能恢复原貌)</string>
+    <string name="reset_organizer_title">重置页面编辑</string>
+    <string name="reset_organizer_message">确定要放弃对页面的所有旋转、排序与删除修改，恢复初始文档结构吗？</string>
+    <string name="page_number_format">第 %1$d 页</string>
+    <string name="original_page_format">原 P%1$d</string>
+    <string name="rotate_counter_clockwise">逆时针旋转90°</string>
+    <string name="rotate_clockwise">顺时针旋转90°</string>
+    <string name="move_page_forward">前移一页</string>
+    <string name="move_page_backward">后移一页</string>
+    <string name="delete_page">删除该页</string>
+
+    <!-- Outline Drawer -->
+    <string name="total_pages_count">共 %1$d 页</string>
+    <string name="no_outlines_found">该文档未包含目录大纲</string>
+    <string name="no_outlines_hint">可使用底部滑块或跳转功能快速翻页</string>
+
+    <!-- Dialogs -->
+    <string name="jump_dialog_title">跳转页面</string>
+    <string name="jump_dialog_prompt">请输入目标页码 (1 ~ %1$d)</string>
+    <string name="page_input_label">页码</string>
+    <string name="action_jump">跳转</string>
+    <string name="doc_info_name">名称: %1$s</string>
+    <string name="doc_info_total_pages">总页数: %1$d 页</string>
+    <string name="doc_info_current_page">当前阅读: 第 %1$d 页</string>
+    <string name="doc_info_size">文件大小: %1$s</string>
+
+    <!-- Viewer & Pages -->
+    <string name="column_focus_locked">已锁定单栏聚焦阅读</string>
+    <string name="unlock_column_focus">取消单栏聚焦</string>
+    <string name="page_divider_format">第 %1$d / %2$d 页</string>
+    <string name="page_divider_single">第 %1$d 页</string>
+    <string name="page_thumbnail_desc">第 %1$d 页</string>
+
+    <!-- Messages -->
+    <string name="error_open_document">打开文档失败: %1$s</string>
+    <string name="msg_saving_protect_original">保护原文件：正在调起【另存为】保存副本…</string>
+    <string name="msg_save_success">另存为成功</string>
+    <string name="msg_save_oom">保存失败：设备可用内存不足，已释放临时缓存，请重试</string>
+    <string name="msg_save_failed">另存为失败: %1$s</string>
+</resources>

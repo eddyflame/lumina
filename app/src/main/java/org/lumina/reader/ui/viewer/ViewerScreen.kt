@@ -31,9 +31,11 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.lumina.reader.R
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -410,7 +412,7 @@ fun ViewerScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "已锁定单栏聚焦阅读",
+                            text = stringResource(R.string.column_focus_locked),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Medium
@@ -418,7 +420,7 @@ fun ViewerScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             Icons.Default.Close,
-                            contentDescription = "取消单栏聚焦",
+                            contentDescription = stringResource(R.string.unlock_column_focus),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier
                                 .size(16.dp)

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import org.lumina.reader.R
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -151,7 +152,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "打开文档失败: ${e.localizedMessage ?: e.message}"
+                        errorMessage = getApplication<Application>().getString(
+                            R.string.error_open_document,
+                            e.localizedMessage ?: e.message ?: ""
+                        )
                     )
                 }
             }
@@ -413,7 +417,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
-                    saveUserMessage = "保护原文件：正在调起【另存为】保存副本..."
+                    saveUserMessage = getApplication<Application>().getString(R.string.msg_saving_protect_original)
                 )
             }
             triggerSaveAsEvent.send(suggestedName)
@@ -444,14 +448,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update {
                     it.copy(
                         isSaving = false,
-                        saveUserMessage = "另存为成功"
+                        saveUserMessage = getApplication<Application>().getString(R.string.msg_save_success)
                     )
                 }
                 onSuccess?.invoke()
             } catch (t: Throwable) {
+                val app = getApplication<Application>()
                 val msg = when (t) {
-                    is OutOfMemoryError -> "保存失败：设备可用内存不足，已释放临时缓存，请重试"
-                    else -> t.localizedMessage ?: "另存为失败"
+                    is OutOfMemoryError -> app.getString(R.string.msg_save_oom)
+                    else -> app.getString(R.string.msg_save_failed, t.localizedMessage ?: t.message ?: "")
                 }
                 _uiState.update {
                     it.copy(

@@ -1,11 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App & General -->
     <string name="app_name">Lumina</string>
     <string name="app_description">Next-Gen Minimalist High Performance PDF Reader</string>
-    <string name="open_pdf">打开 PDF</string>
-    <string name="recent_documents">最近阅读</string>
-    <string name="no_recent_documents">暂无阅读历史，点击上方按钮打开 PDF 文档</string>
-    <string name="crop_enabled">已开启智能白边裁切</string>
-    <string name="crop_disabled">已关闭智能白边裁切</string>
-    <string name="column_focus">分栏聚焦</string>
-    <string name="reading_progress">进度：%1$d / %2$d 页</string>
+    <string name="app_subtitle">Next-Gen PDF Reader</string>
+    <string name="about_app_desc">A next-generation PDF reader focused on modern eye-friendly reading and in-place vector annotation. Features smart auto-cropping, seamless continuous handwriting, multi-functional eraser, and non-destructive safe export.</string>
+    <string name="app_name_label">App Name</string>
+    <string name="version_label">Version</string>
+    <string name="author_label">Author</string>
+    <string name="action_open_document">Open Document</string>
+    <string name="open_pdf">Open PDF</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_confirm">OK</string>
+    <string name="action_back">Back</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_options">Options</string>
+
+    <!-- Shelf Screen -->
+    <string name="choose_pdf_from_storage">Select PDF from storage</string>
+    <string name="storage_picker_hint">Supports system files, downloads, and attachments</string>
+    <string name="search_recent_placeholder">Search recent documents…</string>
+    <string name="clear_search">Clear search</string>
+    <string name="theme_settings">Appearance</string>
+    <string name="about_app">About</string>
+    <string name="clear_bookshelf">Clear bookshelf</string>
+    <string name="reading_history">Reading History</string>
+    <string name="recent_documents">Recent Documents</string>
+    <string name="recent_reading_count">Recent Documents (%1$d)</string>
+    <string name="no_matching_documents">No matching documents found</string>
+    <string name="no_recent_documents">No reading history. Click above to open a PDF document.</string>
+    <string name="no_recent_documents_hint">No reading history. Click above to import a PDF.</string>
+    <string name="clear_history_title">Clear Reading History</string>
+    <string name="clear_history_message">Are you sure you want to clear all reading history? This only clears records and will not delete the original PDF files.</string>
+    <string name="pinned">Pinned</string>
+    <string name="pin_document">Pin document</string>
+    <string name="unpin_document">Unpin document</string>
+    <string name="remove_from_shelf">Remove from bookshelf</string>
+
+    <!-- Recent Document Card Formatting -->
+    <string name="recent_progress_format">%1$d%% · Page %2$d / %3$d</string>
+    <string name="reading_progress">Progress: %1$d / %2$d pages</string>
+    <string name="time_just_now">Just now</string>
+    <string name="time_minutes_ago">%1$d min ago</string>
+    <string name="time_hours_ago">%1$d h ago</string>
+    <string name="time_days_ago">%1$d d ago</string>
+
+    <!-- Theme Settings Bottom Sheet -->
+    <string name="appearance_and_theme">Appearance &amp; Personalization</string>
+    <string name="appearance_subtitle">Customize Lumina interface colors and night themes</string>
+    <string name="theme_mode">Theme Mode</string>
+    <string name="theme_follow_system">System Default</string>
+    <string name="theme_system_dark_active">System is currently in dark mode</string>
+    <string name="theme_system_light_active">System is currently in light mode</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_light_desc">Classic clean and bright interface, airy and clear</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_dark_desc">Immersive eye-friendly dark interface, no night glare</string>
+    <string name="dark_style_title">Dark Theme Style</string>
+    <string name="dark_style_slate">Slate Gray</string>
+    <string name="dark_style_slate_desc">Soft on eyes · Rich depth</string>
+    <string name="dark_style_amoled">Pure Black</string>
+    <string name="dark_style_amoled_desc">AMOLED power-saving true black</string>
+    <string name="selected">Selected</string>
+
+    <!-- Viewer Top Bar -->
+    <string name="back_to_shelf">Back to bookshelf</string>
+    <string name="outline_drawer">Table of Contents</string>
+    <string name="crop_enabled">Auto-crop enabled</string>
+    <string name="crop_disabled">Auto-crop disabled</string>
+    <string name="column_focus">Column focus</string>
+    <string name="dark_mode_exit">Exit dark mode</string>
+    <string name="dark_mode_enter">Eye-care dark mode</string>
+    <string name="annotation_mode_exit">Exit annotation mode</string>
+    <string name="annotation_mode_enter">Enter annotation mode</string>
+    <string name="save_as_document">Save copy as</string>
+    <string name="more_settings">More options</string>
+    <string name="page_organizer">Page Organizer &amp; Editor</string>
+    <string name="fullscreen_enter">Fullscreen mode</string>
+    <string name="fullscreen_exit">Exit fullscreen</string>
+    <string name="landscape_enter">Landscape mode</string>
+    <string name="landscape_exit">Portrait mode</string>
+    <string name="layout_single_page">Layout: Single Page</string>
+    <string name="layout_continuous">Layout: Continuous Scroll</string>
+    <string name="jump_to_page">Jump to page</string>
+    <string name="document_info">Document Info</string>
+
+    <!-- Viewer Bottom Bar -->
+    <string name="layout_badge_continuous">Continuous</string>
+    <string name="layout_badge_single">Single Page</string>
+    <string name="auto_crop_on">Auto-Crop ON</string>
+
+    <!-- Annotation Toolbar -->
+    <string name="tool_pen">Pen</string>
+    <string name="tool_highlighter">Highlighter</string>
+    <string name="tool_eraser">Eraser</string>
+    <string name="stroke_fine">Fine</string>
+    <string name="stroke_medium">Medium</string>
+    <string name="stroke_thick">Thick</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_redo">Redo</string>
+    <string name="action_clear_page">Clear page</string>
+    <string name="action_finish_annotation">Done</string>
+    <string name="clear_annotations_title">Clear Page Annotations</string>
+    <string name="clear_annotations_message">Are you sure you want to clear all ink annotations on this page? You can restore them with the Undo button.</string>
+
+    <!-- Page Organizer Screen -->
+    <string name="page_organizer_subtitle">%1$d pages in total · Tap any page to jump</string>
+    <string name="rotate_all_clockwise">Rotate all 90° clockwise</string>
+    <string name="reset_modifications">Reset changes</string>
+    <string name="save_modifications">Save changes</string>
+    <string name="delete_page_title">Delete Page %1$d</string>
+    <string name="delete_page_message">Are you sure you want to remove this page from current view? (Can be restored via Reset)</string>
+    <string name="reset_organizer_title">Reset Page Edits</string>
+    <string name="reset_organizer_message">Are you sure you want to discard all rotations, reordering and deletions, restoring the original document structure?</string>
+    <string name="page_number_format">Page %1$d</string>
+    <string name="original_page_format">Orig P%1$d</string>
+    <string name="rotate_counter_clockwise">Rotate 90° counter-clockwise</string>
+    <string name="rotate_clockwise">Rotate 90° clockwise</string>
+    <string name="move_page_forward">Move forward</string>
+    <string name="move_page_backward">Move backward</string>
+    <string name="delete_page">Delete this page</string>
+
+    <!-- Outline Drawer -->
+    <string name="total_pages_count">%1$d pages in total</string>
+    <string name="no_outlines_found">No table of contents in this document</string>
+    <string name="no_outlines_hint">Use bottom slider or jump feature to navigate</string>
+
+    <!-- Dialogs -->
+    <string name="jump_dialog_title">Jump to Page</string>
+    <string name="jump_dialog_prompt">Please enter target page (1 ~ %1$d)</string>
+    <string name="page_input_label">Page</string>
+    <string name="action_jump">Jump</string>
+    <string name="doc_info_name">Name: %1$s</string>
+    <string name="doc_info_total_pages">Total Pages: %1$d pages</string>
+    <string name="doc_info_current_page">Current Page: Page %1$d</string>
+    <string name="doc_info_size">File Size: %1$s</string>
+
+    <!-- Viewer & Pages -->
+    <string name="column_focus_locked">Column focus locked</string>
+    <string name="unlock_column_focus">Unlock column focus</string>
+    <string name="page_divider_format">Page %1$d / %2$d</string>
+    <string name="page_divider_single">Page %1$d</string>
+    <string name="page_thumbnail_desc">Page %1$d</string>
+
+    <!-- Messages -->
+    <string name="error_open_document">Failed to open document: %1$s</string>
+    <string name="msg_saving_protect_original">Protecting original file: Launching Save As to export copy…</string>
+    <string name="msg_save_success">Saved successfully</string>
+    <string name="msg_save_oom">Save failed: Insufficient device memory. Temporary cache cleared, please try again.</string>
+    <string name="msg_save_failed">Save failed: %1$s</string>
 </resources>
