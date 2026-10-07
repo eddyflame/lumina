@@ -101,7 +101,7 @@ fun DocInfoDialog(
                 Text(stringResource(R.string.doc_info_total_pages, docInfo.pageCount), style = MaterialTheme.typography.bodyMedium)
                 Text(stringResource(R.string.doc_info_current_page, currentPageIndex + 1), style = MaterialTheme.typography.bodyMedium)
                 if (docInfo.fileSize > 0) {
-                    val sizeMb = String.format("%.2f MB", docInfo.fileSize / (1024f * 1024f))
+                    val sizeMb = String.format(java.util.Locale.getDefault(), "%.2f MB", docInfo.fileSize / (1024f * 1024f))
                     Text(stringResource(R.string.doc_info_size, sizeMb), style = MaterialTheme.typography.bodyMedium)
                 }
             }

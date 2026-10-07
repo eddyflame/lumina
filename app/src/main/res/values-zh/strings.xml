@@ -63,7 +63,7 @@
     <string name="dark_style_slate_desc">柔和护眼·质感层次</string>
     <string name="dark_style_amoled">极致纯黑</string>
     <string name="dark_style_amoled_desc">AMOLED 纯黑省电</string>
-    <string name="selected">已选</string>
+    <string name="content_desc_selected">已选</string>
 
     <!-- Viewer Top Bar -->
     <string name="back_to_shelf">返回书架</string>

@@ -280,7 +280,7 @@ private fun DarkStyleOptionCard(
                 if (selected) {
                     Icon(
                         Icons.Default.Check,
-                        contentDescription = stringResource(R.string.selected),
+                        contentDescription = stringResource(R.string.content_desc_selected),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )

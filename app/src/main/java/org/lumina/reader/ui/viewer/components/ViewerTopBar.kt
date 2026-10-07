@@ -52,7 +52,7 @@ fun ViewerTopBar(
         TopAppBar(
             title = {
                 Text(
-                    text = uiState.documentInfo?.title ?: "Lumina Reader",
+                    text = uiState.documentInfo?.title ?: stringResource(R.string.app_name),
                     maxLines = 1,
                     style = MaterialTheme.typography.titleMedium
                 )
