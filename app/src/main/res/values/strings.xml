@@ -63,7 +63,7 @@
     <string name="dark_style_slate_desc">Soft on eyes · Rich depth</string>
     <string name="dark_style_amoled">Pure Black</string>
     <string name="dark_style_amoled_desc">AMOLED power-saving true black</string>
-    <string name="selected">Selected</string>
+    <string name="content_desc_selected">Selected</string>
 
     <!-- Viewer Top Bar -->
     <string name="back_to_shelf">Back to bookshelf</string>

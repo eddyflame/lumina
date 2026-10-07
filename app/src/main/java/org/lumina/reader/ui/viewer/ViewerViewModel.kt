@@ -335,8 +335,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearAllAnnotationsForPage(pageIndex: Int) {
         val list = _uiState.value.annotations[pageIndex] ?: return
-        for (annot in list) {
-            undoRedoManager.execute(DeleteAnnotationCommand(annotationStore, annot))
+        if (list.isEmpty()) return
+        val commands = list.map { DeleteAnnotationCommand(annotationStore, it) }
+        if (commands.size == 1) {
+            undoRedoManager.execute(commands[0])
+        } else {
+            undoRedoManager.execute(CompoundAnnotationCommand(commands))
         }
     }
 
