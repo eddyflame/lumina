@@ -59,7 +59,7 @@
 
 ```mermaid
 graph TD
-    subgraph Presentation Layer (Jetpack Compose + Material 3)
+    subgraph UI ["Presentation Layer (Jetpack Compose + Material 3)"]
         MainActivity[MainActivity: Edge-to-Edge / Predictive Back]
         ShelfScreen[ShelfScreen: Reactive Bookshelf & History]
         ViewerScreen[ViewerScreen: Continuous Waterfall / Pager & Gesture Arbiter]
@@ -67,13 +67,13 @@ graph TD
         Organizer[PageOrganizerScreen: Page Reorder & Rotation Grid]
     end
 
-    subgraph State Management (ViewModel + StateFlow)
+    subgraph State ["State Management (ViewModel + StateFlow)"]
         VM[ViewerViewModel: UDF Central Controller]
         UIState[ViewerUiState: Unified Viewer State]
         AnnotMgr[AnnotationCommandManager: Command History Stack]
     end
 
-    subgraph Domain Core Layer (Domain Core)
+    subgraph Domain ["Domain Core Layer (Domain Core)"]
         Engine[PdfEngine: Rendering Engine Contract]
         NativeEngine[AndroidPdfRendererEngine: Thread-Safe Native Renderer]
         Cropper[PageCropper2: Smart Auto-Crop 2.0 & Column Focus]
@@ -81,7 +81,7 @@ graph TD
         Cache[BitmapLruCache: 25% Heap Memory OOM Protection]
     end
 
-    subgraph Data & System Layer (Data)
+    subgraph Data ["Data & System Layer (Data)"]
         Repo[DocumentRepository: File Pipeline & Atomic Transaction Manager]
         SAF[Storage Access Framework: ParcelFileDescriptor Stream]
         HistoryDB[HistoryDatabase: Zero-KSP Native SQLite Store]

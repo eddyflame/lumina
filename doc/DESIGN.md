@@ -33,15 +33,15 @@
 
 ```mermaid
 graph TD
-    subgraph 用户功能全景 (Functional Domains)
-        subgraph 文档管理与书架域
+    subgraph FuncDomains ["用户功能全景 (Functional Domains)"]
+        subgraph ShelfDomain ["文档管理与书架域"]
             F_SAF[SAF 系统文件拾取与应用关联调用]
             F_Shelf[响应式书架: 最近阅读/网格/列表]
             F_Pin[置顶锁定与阅读进度毫厘记忆]
             F_Clean[文档记录移除与全量清空]
         end
 
-        subgraph 核心视口与阅读域
+        subgraph ViewportDomain ["核心视口与阅读域"]
             F_Layout[双排版引擎: 纵向连续瀑布流 / 横向单页仿真]
             F_Orientation[一键横竖屏: 双向重力感应横屏切换]
             F_Gesture[多层手势: 捏合缩放/边界平移/单击呼出/双击复位]
@@ -49,18 +49,18 @@ graph TD
             F_Outline[文档大纲: 目录树提取与平滑跳转]
         end
 
-        subgraph 智能页面优化域
+        subgraph CropDomain ["智能页面优化域"]
             F_Crop[智能白边裁切 2.0: 纯 Kotlin 四向微秒级探测]
             F_Column[双栏论文聚焦: 点击自适应扫描中缝锁定单栏]
         end
 
-        subgraph 视觉美学与护眼域
+        subgraph AestheticsDomain ["视觉美学与护眼域"]
             F_DarkTheme[双模深色: 板岩深灰护眼 / AMOLED 纯黑省电]
             F_ColorFilter[护眼色彩矩阵: 柔和深色 7.8:1 AAA / 极暗黑]
             F_M3Tokens[Material 3 动态调色板与语义色彩分发]
         end
 
-        subgraph 交互手绘批注域
+        subgraph AnnotationDomain ["交互手绘批注域"]
             F_Pen[钢笔墨水: 自定义颜色与粗细]
             F_Highlighter[荧光笔: 半透明图层乘法混色高亮]
             F_Eraser[物理橡皮擦: 实时擦除笔画]
@@ -68,7 +68,7 @@ graph TD
             F_CoordTrans[坐标双向投影: 屏幕视口像素 <=> PDF 72 DPI 点阵]
         end
 
-        subgraph 页面编辑与标准导出域
+        subgraph ExportDomain ["页面编辑与标准导出域"]
             F_ExportAnnot[批注标准化回存: ISO 32000-1 /Ink 与 /AP 外观流]
             F_PageOrganize[页面管理器: 多选/左旋/右旋/上移/下移/删除]
             F_SaveAs[非破坏性保存: 统一 SAF 另存为安全副本导出]
@@ -129,7 +129,7 @@ Lumina 严格遵循分层架构原则（Clean Architecture）与单向数据流�
 
 ```mermaid
 graph TD
-    subgraph UI 表现层 (Presentation Layer)
+    subgraph UI ["UI 表现层 (Presentation Layer)"]
         MainActivity[MainActivity: 单 Activity 全局容器 / 预测性返回 / 沉浸控制器]
         ShelfScreen[ShelfScreen: 极简响应式书架 / 历史管理]
         ViewerScreen[ViewerScreen: 瀑布流/横向翻页 / 手势交互核心]
@@ -138,13 +138,13 @@ graph TD
         AnnotBar[AnnotationToolbar: 批注手绘控制条]
     end
 
-    subgraph ViewModel 状态中枢层 (ViewModel & StateFlow)
+    subgraph VM_Layer ["ViewModel 状态中枢层 (ViewModel & StateFlow)"]
         VM[ViewerViewModel: UI 状态聚合 / 跨组件生命周期中枢]
         UIState[ViewerUiState: 统一阅读器状态模型]
         AnnotMgr[AnnotationCommandManager: 撤销重做命令栈]
     end
 
-    subgraph 核心领域引擎层 (Domain Core)
+    subgraph Domain ["核心领域引擎层 (Domain Core)"]
         Engine[PdfEngine 核心契约]
         NativeEngine[AndroidPdfRendererEngine 原生渲染引擎]
         Cropper[PageCropper2: 纯 Kotlin 智能白边裁切与双栏定位]
@@ -153,7 +153,7 @@ graph TD
         Cache[BitmapLruCache: 25% 堆内存防爆复用池]
     end
 
-    subgraph 数据持久化与系统接入层 (Data Layer)
+    subgraph Data ["数据持久化与系统接入层 (Data Layer)"]
         Repo[DocumentRepository: 文件管道与安全事务管理器]
         SAF[Storage Access Framework: ParcelFileDescriptor 流式管道]
         HistoryDB[HistoryDatabase: 原生免 KSP SQLite 历史与置顶]
