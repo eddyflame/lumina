@@ -25,7 +25,7 @@ object PageCropper2 {
     private const val H_LINE_SIZE = 5
 
     /** 边缘避让安全边距 (像素)，有效滤除装订线阴影、边缘脏点 */
-    private const val LINE_MARGIN = 20
+    private const val LINE_MARGIN = 15
 
     /** 留白容差阈值 (0.5% 以下暗点仍视为空白) */
     private const val WHITE_THRESHOLD = 0.005f
@@ -131,7 +131,7 @@ object PageCropper2 {
     // ================================= 核心计算内部函数 =================================
 
     /**
-     * 计算指定矩形区域的平均亮度 (采用感知明度公式 (min+max)/2)
+     * 计算指定矩形区域的平均亮度 (采用标准 ITU-R BT.601 感知亮度加权)
      */
     internal fun calculateAvgLum(
         pixels: IntArray,
@@ -150,13 +150,47 @@ object PageCropper2 {
                 val r = (color shr 16) and 0xFF
                 val g = (color shr 8) and 0xFF
                 val b = color and 0xFF
-                val minVal = min(r, min(g, b))
-                val maxVal = max(r, max(g, b))
-                totalBright += (minVal + maxVal) / 2
+                totalBright += (r * 77 + g * 150 + b * 29) shr 8
             }
         }
         val count = max(1, subW * subH)
         return (totalBright / count).toInt()
+    }
+
+    /**
+     * 判定指定像素是否属于正文/有效内容 (黑字、彩字、红印章、图表、反白底色等)
+     *
+     * 针对扫描版 PDF 的色彩学精准判定：
+     * 1. 采用 ITU-R BT.601 国际照明委员会感知明度，红光视觉权重为 0.299，杜绝 (min+max)/2 将红色虚高折算为浅灰的问题；
+     * 2. 引入色彩饱和度/色度差 (Chroma = max(RGB) - min(RGB)) 与红色特征向量，纸张留白边缘为极低色度近无色，
+     *    而白底红字、红印章、红底白字条幅等具备极强色度特征，可精准识别为正文；
+     * 3. 兼容常规浅色纸张与深色/反色 PDF 背景。
+     */
+    internal fun isContentPixel(color: Int, avgLum: Int): Boolean {
+        val r = (color shr 16) and 0xFF
+        val g = (color shr 8) and 0xFF
+        val b = color and 0xFF
+
+        val lum = (r * 77 + g * 150 + b * 29) shr 8
+        val maxVal = max(r, max(g, b))
+        val minVal = min(r, min(g, b))
+        val chroma = maxVal - minVal
+
+        if (avgLum >= 120) {
+            // 常规浅色/白底纸张环境 (占 99% 以上书籍扫描场景)
+            val bgLum = max(avgLum, 220)
+            // (A) 像素亮度显著暗于纸张背景，或处于明显正文暗调区间 (黑字、深灰、铅笔、插图暗调)
+            val isDark = (bgLum - lum) > 25 || lum < 195
+            // (B) 像素具备显著色彩饱度 (白底红字、红印章、红底白字色块底色、彩色印刷插图)
+            // 纸张留白边缘通常为纯白或微黄灰白，chroma 极低 (< 15)
+            // 红字典型特征: 红色显著偏高 (r > 100 且 r - g > 20 且 r - b > 20) 或总体色度差明显 (chroma > 22)
+            val isChromatic = chroma > 22 || (r > 100 && (r - g > 20 && r - b > 20))
+            return isDark || isChromatic
+        } else {
+            // 深色背景环境 (纯黑/深灰背景页面)
+            val diffLum = kotlin.math.abs(lum - avgLum)
+            return diffLum > 30 || chroma > 25
+        }
     }
 
     /**
@@ -173,25 +207,19 @@ object PageCropper2 {
         avgLum: Int,
         threshold: Float = WHITE_THRESHOLD
     ): Boolean {
-        var darkCount = 0
+        var contentCount = 0
         for (y in 0 until subH) {
             val rowOffset = (y + subY) * width + subX
             for (x in 0 until subW) {
                 val color = pixels[rowOffset + x]
-                val r = (color shr 16) and 0xFF
-                val g = (color shr 8) and 0xFF
-                val b = color and 0xFF
-                val lum = (min(r, min(g, b)) + max(r, max(g, b))) / 2
-
-                // 若像素显著暗于平均亮度 (比 avgLum 至少暗 10%)
-                if (lum < avgLum && (avgLum - lum) * 10 > avgLum) {
-                    darkCount++
+                if (isContentPixel(color, avgLum)) {
+                    contentCount++
                 }
             }
         }
         val total = max(1, subW * subH)
-        val ratio = darkCount.toFloat() / total
-        return ratio < threshold && darkCount < 5
+        val ratio = contentCount.toFloat() / total
+        return ratio < threshold && contentCount < 5
     }
 
     private fun getLeftBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {

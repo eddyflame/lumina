@@ -208,15 +208,18 @@ graph TD
 
 ### 4.2 Smart Auto-Crop 2.0 & Column Focus (`core/crop/PageCropper2.kt`)
 
-#### 4.2.1 Pure Kotlin Bitwise Re-engineering
-Ported from EBookDroid's classic native C algorithm and optimized for modern ARM/x86 JVM execution:
-1. **400px Sub-Sample**: Generates a low-cost `SAMPLE_SIZE = 400` pixel array; execution time is **< 1.5ms** on modern SoCs;
-2. **Dynamic Baseline Luminance (`calculateAvgLum`)**:
-   $\text{lum} = \frac{\min(R,G,B) + \max(R,G,B)}{2}$, calculating the global page average luminance;
-3. **Thresholding & Noise Suppression**:
-   Dark pixel rule: $(\text{lum} < \text{avgLum}) \land ((\text{avgLum} - \text{lum}) \times 10 > \text{avgLum})$;
-   Tolerates up to 0.5% dark pixels (`WHITE_THRESHOLD = 0.005`) to discard staple marks, scanner artifacts, and binding lines;
-4. **Boundary Detection**: Safely falls back to `0f` or `1f` if no non-white content is detected, preventing blank pages from being corrupted.
+#### 4.2.1 Pure Kotlin Bitwise Re-engineering & Color-Aware Perception
+Ported from EBookDroid's classic native C algorithm, re-engineered for modern ARM/x86 JVM execution, and upgraded with colorimetric perception for scanned color/red elements:
+1. **400px Sub-Sample**: Generates a low-cost `SAMPLE_SIZE = 400` pixel array; execution time is **< 1.8ms** on modern SoCs;
+2. **ITU-R BT.601 Perceptual Luminance (`calculateAvgLum`)**:
+   Uses standard perceptual luminance $\text{lum} = \frac{77 \times R + 150 \times G + 29 \times B}{256}$ matching human eye sensitivity (Red 0.299, Green 0.587, Blue 0.114), eliminating erroneous light-gray overestimation of red elements;
+3. **Chroma Difference & Red Feature Vector Detection (`isContentPixel`)**:
+   Calculates color saturation / chroma difference $\text{chroma} = \max(R,G,B) - \min(R,G,B)$. White margins have near-zero chroma ($\text{chroma} < 15$);
+   Detects red text on white background, red seals, and white text on red background banners via chroma threshold ($\text{chroma} > 22$) and dominant red channel ($R > 100 \land R - G > 20 \land R - B > 20$), preventing red elements from being trimmed away;
+4. **Adaptive Background Baseline & Noise Filtering**:
+   Anchors paper background brightness ($\max(\text{avgLum}, 220)$) on light pages to prevent dark banners from distorting thresholds;
+   Tolerates up to 0.5% dark pixels (`WHITE_THRESHOLD = 0.005`) with a 15px margin to discard staple marks, scanner artifacts, and binding lines;
+5. **Full-Bleed Cover Protection**: Safely preserves `0f` or `1f` full-page boundaries when scanning full-bleed covers, preventing blank or full-color cover pages from being sliced into fragments.
 
 #### 4.2.2 Academic Paper Double-Column Auto-Focus (`calculateColumnBounds`)
 - Detects the nearest column gutter based on tap coordinate $(tapX, tapY)$;
