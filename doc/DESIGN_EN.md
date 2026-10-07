@@ -33,15 +33,15 @@ Traditional Android PDF reading applications suffer from several critical shortc
 
 ```mermaid
 graph TD
-    subgraph Functional Domains
-        subgraph Document & Shelf Domain
+    subgraph FuncDomains ["Functional Domains"]
+        subgraph ShelfDomain ["Document & Shelf Domain"]
             F_SAF[SAF System File Picker & Intent Association]
             F_Shelf[Reactive Bookshelf: Recent/Grid/List Views]
             F_Pin[Pin-to-Top & Precise Reading Progress Memory]
             F_Clean[Record Removal & Clear-All Management]
         end
 
-        subgraph Viewport & Reading Domain
+        subgraph ViewportDomain ["Viewport & Reading Domain"]
             F_Layout[Dual Layout Engine: Continuous Vertical / Single Horizontal]
             F_Orientation[One-Tap Screen Rotation: Sensor Landscape Support]
             F_Gesture[Tiered Gestures: Pinch-to-Zoom / Pan / Single Tap / Double Tap]
@@ -49,18 +49,18 @@ graph TD
             F_Outline[Document Outline: Table of Contents Extraction & Jump]
         end
 
-        subgraph Intelligent Page Optimization Domain
+        subgraph CropDomain ["Intelligent Page Optimization Domain"]
             F_Crop[Smart Auto-Crop 2.0: Pure Kotlin Microsecond Scan]
             F_Column[Double-Column Focus: Automatic Gutter Detection]
         end
 
-        subgraph Visual Aesthetics & Eye-Care Domain
+        subgraph AestheticsDomain ["Visual Aesthetics & Eye-Care Domain"]
             F_DarkTheme[Dual Dark Theme: Slate Charcoal / AMOLED Pure Black]
             F_ColorFilter[Eye-Care Color Matrix: Soft Dark 7.8:1 AAA / Pure Dark]
             F_M3Tokens[Material 3 Dynamic Theming & Semantic Slot Distribution]
         end
 
-        subgraph Interactive Annotation Domain
+        subgraph AnnotationDomain ["Interactive Annotation Domain"]
             F_Pen[Ink Pen: Custom Color Palette & Stroke Width]
             F_Highlighter[Highlighter: Semi-Transparent BlendMode Overlay]
             F_Eraser[Physical Eraser: Point-to-Stroke Hit Testing]
@@ -68,7 +68,7 @@ graph TD
             F_CoordTrans[Bidirectional Projection: Viewport Px <=> PDF 72 DPI Points]
         end
 
-        subgraph Page Editing & Standard Export Domain
+        subgraph ExportDomain ["Page Editing & Standard Export Domain"]
             F_ExportAnnot[Standard Serialization: ISO 32000-1 /Ink & /AP Streams]
             F_PageOrganize[Page Organizer: Multi-Select / Rotate / Reorder / Delete]
             F_SaveAs[Non-Destructive Save: Unified SAF Export to Safe Destination Copy]
@@ -129,7 +129,7 @@ Lumina strictly adheres to Clean Architecture and Unidirectional Data Flow (UDF)
 
 ```mermaid
 graph TD
-    subgraph Presentation Layer (Jetpack Compose + Material 3)
+    subgraph UI ["Presentation Layer (Jetpack Compose + Material 3)"]
         MainActivity[MainActivity: Edge-to-Edge / Predictive Back / Intent Dispatcher]
         ShelfScreen[ShelfScreen: Reactive Bookshelf & History Management]
         ViewerScreen[ViewerScreen: Continuous Waterfall / Pager & Gesture Arbiter]
@@ -138,13 +138,13 @@ graph TD
         AnnotBar[AnnotationToolbar: Floating Annotation Control Bar]
     end
 
-    subgraph State Management (ViewModel & StateFlow)
+    subgraph State ["State Management (ViewModel & StateFlow)"]
         VM[ViewerViewModel: UI State Aggregator & Cross-Component Mediator]
         UIState[ViewerUiState: Unified Reading State Model]
         AnnotMgr[AnnotationCommandManager: Command History Stack]
     end
 
-    subgraph Domain Core Layer (Core)
+    subgraph Domain ["Domain Core Layer (Core)"]
         Engine[PdfEngine Contract]
         NativeEngine[AndroidPdfRendererEngine: Thread-Safe Native Renderer]
         Cropper[PageCropper2: Pure Kotlin Auto-Crop & Column Focus]
@@ -153,7 +153,7 @@ graph TD
         Cache[BitmapLruCache: 25% Heap Memory OOM Protection Pool]
     end
 
-    subgraph Data & System Layer (Data)
+    subgraph Data ["Data & System Layer (Data)"]
         Repo[DocumentRepository: File Pipeline & Atomic Transaction Manager]
         SAF[Storage Access Framework: ParcelFileDescriptor Stream]
         HistoryDB[HistoryDatabase: Zero-KSP Native SQLite Store]

@@ -60,7 +60,7 @@
 
 ```mermaid
 graph TD
-    subgraph UI 表现层 (Jetpack Compose + Material 3)
+    subgraph UI ["UI 表现层 (Jetpack Compose + Material 3)"]
         MainActivity[MainActivity: Edge-to-Edge / 预测性返回]
         ShelfScreen[ShelfScreen: 极简响应式书架]
         ViewerScreen[ViewerScreen: 瀑布流/横向翻页 / 手势调度]
@@ -68,13 +68,13 @@ graph TD
         Organizer[PageOrganizerScreen: 页面管理与物理重排]
     end
 
-    subgraph 状态中枢 (ViewModel + StateFlow)
+    subgraph State ["状态中枢 (ViewModel + StateFlow)"]
         VM[ViewerViewModel: 单向数据流 UDF 控制中枢]
         UIState[ViewerUiState: 统一阅读器聚合状态]
         AnnotMgr[AnnotationCommandManager: 命令撤销重做栈]
     end
 
-    subgraph 核心引擎层 (Domain Core)
+    subgraph Domain ["核心引擎层 (Domain Core)"]
         Engine[PdfEngine: 渲染引擎契约]
         NativeEngine[AndroidPdfRendererEngine: 线程安全原生渲染]
         Cropper[PageCropper2: 智能白边裁切 2.0 与双栏定位]
@@ -82,7 +82,7 @@ graph TD
         Cache[BitmapLruCache: 25% 堆内存防爆复用池]
     end
 
-    subgraph 数据持久化与系统接入 (Data Layer)
+    subgraph Data ["数据持久化与系统接入 (Data Layer)"]
         Repo[DocumentRepository: 文件管道与安全事务管理器]
         SAF[Storage Access Framework: ParcelFileDescriptor]
         HistoryDB[HistoryDatabase: 原生免 KSP SQLite 历史记忆]
