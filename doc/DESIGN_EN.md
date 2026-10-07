@@ -219,7 +219,8 @@ Ported from EBookDroid's classic native C algorithm, re-engineered for modern AR
 4. **Adaptive Background Baseline & Noise Filtering**:
    Anchors paper background brightness ($\max(\text{avgLum}, 220)$) on light pages to prevent dark banners from distorting thresholds;
    Tolerates up to 0.5% dark pixels (`WHITE_THRESHOLD = 0.005`) with a 15px margin to discard staple marks, scanner artifacts, and binding lines;
-5. **Full-Bleed Cover Protection**: Safely preserves `0f` or `1f` full-page boundaries when scanning full-bleed covers, preventing blank or full-color cover pages from being sliced into fragments.
+5. **Edge Content Latching & Full-Bleed Protection**:
+   Immediately latches boundaries upon encountering the first non-white content strip (returns `0f`/`1f` when touching edges at $x=0/y=0$, or steps back safe breathing margins otherwise). This completely eliminates the legacy issue where $whiteCount \ge 1$ skipped over running headers, top banners, or publisher footers, which previously caused internal content collapse and aspect-ratio compression. Safely preserves full-bleed covers without fragmentation.
 
 #### 4.2.2 Academic Paper Double-Column Auto-Focus (`calculateColumnBounds`)
 - Detects the nearest column gutter based on tap coordinate $(tapX, tapY)$;
