@@ -159,4 +159,139 @@ class PageCropper2Test {
         // 验证检测到的列边界是合理的
         println("Dark background column: left=${col.left}, right=${col.right}")
     }
+
+    /**
+     * 测试白底红字 (标题/印章/批注) 能够被正确识别为有效内容，不会被当做白边误裁
+     */
+    @Test
+    fun testWhiteBackgroundWithRedTextNotCropped() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        val red = 0xFFDC2626.toInt() // 典型印刷红 (220, 38, 38)
+        // 顶部绘制白底红字标题 (x=100..300, y=50..90)
+        for (y in 50 until 90) {
+            for (x in 100 until 300) {
+                pixels[y * width + x] = red
+            }
+        }
+        // 下方绘制常规黑色正文 (x=80..320, y=200..480)
+        for (y in 200 until 480) {
+            for (x in 80 until 320) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        println("White background red text bounds: $bounds")
+
+        // 顶部的红字绝不能被裁掉！top 必须在红字之前 (<= 50/600 = 0.083f)
+        assertTrue("Top bound must preserve red text at y=50 (was ${bounds.top})", bounds.top <= 0.09f)
+        // 底部正文不能被裁掉
+        assertTrue("Bottom bound must preserve content at y=480 (was ${bounds.bottom})", bounds.bottom >= 0.79f)
+    }
+
+    /**
+     * 测试书籍封面典型版式：
+     * 1. 顶部白底红字 (丛书名/版头)
+     * 2. 中间红底白字条幅 (主书名色块)
+     * 3. 底部黑色出版信息
+     * 验证整页白边裁切保留全页结构，白底红字不被裁掉，红底白字不被截断压缩。
+     */
+    @Test
+    fun testRedBannerWithWhiteTextAndRedHeader() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        val red = 0xFFCC2222.toInt()
+        // 1. 顶部白底红字 (x=100..300, y=40..70)
+        for (y in 40 until 70) {
+            for (x in 100 until 300) {
+                pixels[y * width + x] = red
+            }
+        }
+        // 2. 中间红底白字大标题条幅 (x=50..350, y=140..220)
+        for (y in 140 until 220) {
+            for (x in 50 until 350) {
+                pixels[y * width + x] = red
+            }
+        }
+        // 红底内的反白文字 (x=100..300, y=160..200)
+        for (y in 160 until 200) {
+            for (x in 100 until 300) {
+                pixels[y * width + x] = white
+            }
+        }
+        // 3. 底部黑色正文/出版社信息 (x=80..320, y=350..520)
+        for (y in 350 until 520) {
+            for (x in 80 until 320) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        println("Red banner + red header bounds: $bounds")
+
+        // 验证整体裁边：顶部白底红字不能被裁掉，顶部边界在红字之上 (<= 40/600 = 0.067f)
+        assertTrue("Top bound must preserve top red text (was ${bounds.top})", bounds.top <= 0.08f)
+        // 底部边界必须覆盖到底部内容 (>= 520/600 = 0.867f)
+        assertTrue("Bottom bound must cover bottom content (was ${bounds.bottom})", bounds.bottom >= 0.85f)
+        // 左右边界必须覆盖中间红底条幅 (left <= 50/400 = 0.125f, right >= 350/400 = 0.875f)
+        assertTrue("Left bound must cover red banner left (was ${bounds.left})", bounds.left <= 0.14f)
+        assertTrue("Right bound must cover red banner right (was ${bounds.right})", bounds.right >= 0.86f)
+    }
+
+    /**
+     * 测试整页纯红底色封面：
+     * 全幅红色封面不应被当成白边裁切或切成碎片，应完整保留全图。
+     */
+    @Test
+    fun testFullBleedRedCoverNotOverCropped() {
+        val width = 400
+        val height = 600
+        val red = 0xFFCC2222.toInt()
+        val pixels = IntArray(width * height) { red }
+
+        // 中间有反白文字
+        for (y in 200 until 280) {
+            for (x in 100 until 300) {
+                pixels[y * width + x] = white
+            }
+        }
+
+        val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        println("Full red cover bounds: $bounds")
+
+        assertEquals("Red cover left should remain near 0", 0f, bounds.left, 0.05f)
+        assertEquals("Red cover top should remain near 0", 0f, bounds.top, 0.05f)
+        assertEquals("Red cover right should remain near 1", 1f, bounds.right, 0.05f)
+        assertEquals("Red cover bottom should remain near 1", 1f, bounds.bottom, 0.05f)
+    }
+
+    /**
+     * 测试国标红 (237, 43, 36) 印章/印记的探测
+     */
+    @Test
+    fun testRedSealStampDetection() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        val sealRed = 0xFFED2B24.toInt()
+        for (y in 50 until 90) {
+            for (x in 180 until 220) {
+                pixels[y * width + x] = sealRed
+            }
+        }
+        for (y in 150 until 450) {
+            for (x in 100 until 300) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        assertTrue("Top bound must include the red seal at y=50 (was ${bounds.top})", bounds.top <= 0.09f)
+    }
 }
