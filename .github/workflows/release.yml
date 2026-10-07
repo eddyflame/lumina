@@ -29,12 +29,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Decode Keystore
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          mkdir -p "${{ runner.temp }}"
-          echo "$KEYSTORE_BASE64" | base64 -d > "${{ runner.temp }}/release.jks"
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            mkdir -p "${{ runner.temp }}"
+            echo "$KEYSTORE_BASE64" | base64 -d > "${{ runner.temp }}/release.jks"
+          fi
 
       - name: Build Release APK
         env:
