@@ -82,6 +82,18 @@ android {
     }
 }
 
+base {
+    archivesName.set("lumina-reader")
+}
+
+tasks.matching { it.name == "packageRelease" }.configureEach {
+    doLast {
+        val releaseDir = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+        val apkFile = releaseDir.listFiles()?.firstOrNull { it.extension == "apk" && it.name != "lumina-reader.apk" }
+        apkFile?.copyTo(File(releaseDir, "lumina-reader.apk"), overwrite = true)
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
