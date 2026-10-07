@@ -224,20 +224,14 @@ object PageCropper2 {
 
     private fun getLeftBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
         val maxScanW = width / 3
-        var whiteCount = 0
         var x = 0
         while (x < maxScanW) {
             val isWhite = isRectWhite(
                 pixels, width, height,
                 x, LINE_MARGIN, V_LINE_SIZE, height - 2 * LINE_MARGIN, avgLum
             )
-            if (isWhite) {
-                whiteCount++
-            } else {
-                if (whiteCount >= 1) {
-                    return max(0, x - V_LINE_SIZE).toFloat() / width
-                }
-                whiteCount = 0
+            if (!isWhite) {
+                return if (x == 0) 0f else max(0, x - V_LINE_SIZE).toFloat() / width
             }
             x += V_LINE_SIZE
         }
@@ -246,7 +240,6 @@ object PageCropper2 {
 
     private fun getTopBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
         val maxScanH = height / 3
-        var whiteCount = 0
         var y = 0
         while (y < maxScanH) {
             val isWhite = isRectWhite(
@@ -254,14 +247,10 @@ object PageCropper2 {
                 LINE_MARGIN, y, width - 2 * LINE_MARGIN, H_LINE_SIZE, avgLum,
                 threshold = 0.0015f // 顶部横向扫描灵敏度更高，防止漏过首行文字/页眉
             )
-            if (isWhite) {
-                whiteCount++
-            } else {
-                if (whiteCount >= 1) {
-                    // 回退 2 个步进周期，预留充分的顶部文字笔画上升部空间
-                    return max(0, y - 2 * H_LINE_SIZE).toFloat() / height
-                }
-                whiteCount = 0
+            if (!isWhite) {
+                // 如果从边缘 (y == 0) 就直接探测到内容（如满版封面、贴顶通栏条幅），直接返回 0f 避免过度裁切
+                // 否则回退 2 个步进周期，预留充分的顶部文字笔画上升部空间
+                return if (y == 0) 0f else max(0, y - 2 * H_LINE_SIZE).toFloat() / height
             }
             y += H_LINE_SIZE
         }
@@ -270,20 +259,14 @@ object PageCropper2 {
 
     private fun getRightBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
         val maxScanW = width / 3
-        var whiteCount = 0
         var x = width - V_LINE_SIZE
         while (x > width - maxScanW) {
             val isWhite = isRectWhite(
                 pixels, width, height,
                 x, LINE_MARGIN, V_LINE_SIZE, height - 2 * LINE_MARGIN, avgLum
             )
-            if (isWhite) {
-                whiteCount++
-            } else {
-                if (whiteCount >= 1) {
-                    return min(width, x + 2 * V_LINE_SIZE).toFloat() / width
-                }
-                whiteCount = 0
+            if (!isWhite) {
+                return if (x == width - V_LINE_SIZE) 1f else min(width, x + 2 * V_LINE_SIZE).toFloat() / width
             }
             x -= V_LINE_SIZE
         }
@@ -292,7 +275,6 @@ object PageCropper2 {
 
     private fun getBottomBound(pixels: IntArray, width: Int, height: Int, avgLum: Int): Float {
         val maxScanH = height / 3
-        var whiteCount = 0
         var y = height - H_LINE_SIZE
         while (y > height - maxScanH) {
             val isWhite = isRectWhite(
@@ -300,14 +282,10 @@ object PageCropper2 {
                 LINE_MARGIN, y, width - 2 * LINE_MARGIN, H_LINE_SIZE, avgLum,
                 threshold = 0.0015f // 底部横向扫描灵敏度更高，防止漏过页脚/尾行
             )
-            if (isWhite) {
-                whiteCount++
-            } else {
-                if (whiteCount >= 1) {
-                    // 底部多扩展保留余量，防止下伸部笔画与尾行被截断 (与顶部回退 2 个周期完全对称)
-                    return min(height, y + 3 * H_LINE_SIZE).toFloat() / height
-                }
-                whiteCount = 0
+            if (!isWhite) {
+                // 如果从底部边缘就直接探测到内容（如底栏出版社文字、条形码、满版背景），直接返回 1f
+                // 否则多扩展 3 个周期保留余量，防止下伸部笔画与尾行被截断
+                return if (y == height - H_LINE_SIZE) 1f else min(height, y + 3 * H_LINE_SIZE).toFloat() / height
             }
             y -= H_LINE_SIZE
         }

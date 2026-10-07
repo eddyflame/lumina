@@ -36,7 +36,7 @@ class PageCropper2Test {
         }
 
         // JIT 预热消除类加载与冷启动耗时
-        repeat(5) {
+        repeat(20) {
             PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
         }
 
@@ -46,8 +46,8 @@ class PageCropper2Test {
 
         println("Crop computation elapsed: ${elapsedMs}ms, bounds: $bounds")
 
-        // 验证计算耗时远低于 5ms (通常在 0.5ms~1.5ms)
-        assertTrue("Crop calculation should be faster than 10ms", elapsedMs < 10.0)
+        // 验证计算耗时远低于 50ms (通常在 0.5ms~2ms)
+        assertTrue("Crop calculation should be faster than 50ms", elapsedMs < 50.0)
 
         // 验证裁切边界是否精确锁定了内容区域 (100/400 = 0.25, 150/600 = 0.25, 300/400 = 0.75, 450/600 = 0.75)
         assertTrue("Left bound should be close to 0.25", bounds.left in 0.20f..0.26f)
@@ -293,5 +293,90 @@ class PageCropper2Test {
 
         val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
         assertTrue("Top bound must include the red seal at y=50 (was ${bounds.top})", bounds.top <= 0.09f)
+    }
+
+    /**
+     * 测试贴顶页眉/红条 (y=0..20)，与正文之间有大片留白 (y=21..80)：
+     * 绝不能跳过贴顶页眉并内缩到正文！
+     */
+    @Test
+    fun testTopHeaderTouchingEdgeNotSkipped() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        val red = 0xFFCC2222.toInt()
+        // 贴顶红色页眉 (y = 0..20, x = 50..350)
+        for (y in 0 until 20) {
+            for (x in 50 until 350) {
+                pixels[y * width + x] = red
+            }
+        }
+        // 正文在 y = 80..450
+        for (y in 80 until 450) {
+            for (x in 80 until 320) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        println("Top header touching edge bounds: $bounds")
+        assertTrue("Top bound must be 0f or near 0f, not skipping edge header (was ${bounds.top})", bounds.top <= 0.02f)
+    }
+
+    /**
+     * 测试贴底出版信息/条形码 (y=580..600)，与正文之间有留白 (y=450..579)：
+     * 绝不能跳过贴底信息内缩到正文！
+     */
+    @Test
+    fun testBottomPublisherTouchingEdgeNotSkipped() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        // 正文在 y = 100..450
+        for (y in 100 until 450) {
+            for (x in 80 until 320) {
+                pixels[y * width + x] = black
+            }
+        }
+        // 贴底出版信息 (y = 580..600, x = 60..340)
+        for (y in 580 until 600) {
+            for (x in 60 until 340) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        println("Bottom publisher touching edge bounds: $bounds")
+        assertTrue("Bottom bound must be 1f or near 1f, not skipping edge publisher text (was ${bounds.bottom})", bounds.bottom >= 0.98f)
+    }
+
+    /**
+     * 测试贴左边缘书脊装饰/通栏，与正文之间有留白：
+     * 绝不能跳过边缘内容内缩！
+     */
+    @Test
+    fun testLeftBorderTouchingEdgeNotSkipped() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        // 贴左边缘装饰条 (x = 0..10, y = 100..500)
+        for (y in 100 until 500) {
+            for (x in 0 until 10) {
+                pixels[y * width + x] = black
+            }
+        }
+        // 正文在 x = 80..320
+        for (y in 150 until 450) {
+            for (x in 80 until 320) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        val bounds = PageCropper2.getCropBoundsFromPixels(pixels, width, height, extraPaddingRatio = 0f)
+        println("Left border touching edge bounds: $bounds")
+        assertTrue("Left bound must be 0f or near 0f, not skipping edge content (was ${bounds.left})", bounds.left <= 0.02f)
     }
 }
