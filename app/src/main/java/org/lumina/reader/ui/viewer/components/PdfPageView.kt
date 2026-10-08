@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import org.lumina.reader.core.annotation.AnnotationColorThemeAdapter
 import org.lumina.reader.core.annotation.AnnotationTool
 import org.lumina.reader.core.annotation.NormalizedPoint
 import org.lumina.reader.core.annotation.PageCoordinateTransformer
@@ -427,12 +428,17 @@ fun PdfPageView(
                     if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) {
                         for (annotation in pageAnnotations) {
                             if (annotation is PdfAnnotation.Ink) {
+                                val baseColor = AnnotationColorThemeAdapter.resolveDisplayColor(annotation.color, colorMode)
                                 val strokeColor = if (annotation.isHighlighter) {
-                                    Color(annotation.color).copy(alpha = 0.40f)
+                                    baseColor.copy(alpha = if (colorMode == ReadingColorMode.NORMAL) 0.40f else 0.55f)
                                 } else {
-                                    Color(annotation.color)
+                                    baseColor
                                 }
-                                val blendMode = if (annotation.isHighlighter) BlendMode.Multiply else BlendMode.SrcOver
+                                val blendMode = if (annotation.isHighlighter) {
+                                    AnnotationColorThemeAdapter.resolveHighlighterBlendMode(colorMode)
+                                } else {
+                                    BlendMode.SrcOver
+                                }
                                 val strokeWidthPx = annotation.strokeWidthDp * density.density
 
                                 for (stroke in annotation.strokes) {
@@ -454,12 +460,17 @@ fun PdfPageView(
 
                     // 2. 绘制当前正在手绘中的活跃笔迹 (仅在横向单页模式生效)
                     if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL && activeStrokePoints.isNotEmpty()) {
+                        val baseColor = AnnotationColorThemeAdapter.resolveDisplayColor(annotationColor, colorMode)
                         val liveColor = if (activeTool == AnnotationTool.HIGHLIGHTER) {
-                            Color(annotationColor).copy(alpha = 0.40f)
+                            baseColor.copy(alpha = if (colorMode == ReadingColorMode.NORMAL) 0.40f else 0.55f)
                         } else {
-                            Color(annotationColor)
+                            baseColor
                         }
-                        val liveBlendMode = if (activeTool == AnnotationTool.HIGHLIGHTER) BlendMode.Multiply else BlendMode.SrcOver
+                        val liveBlendMode = if (activeTool == AnnotationTool.HIGHLIGHTER) {
+                            AnnotationColorThemeAdapter.resolveHighlighterBlendMode(colorMode)
+                        } else {
+                            BlendMode.SrcOver
+                        }
                         val liveWidthPx = annotationStrokeWidthDp * density.density
                         val livePath = buildSmoothBezierPath(activeStrokePoints, w, h)
 
@@ -542,12 +553,17 @@ fun PdfPageView(
 
                     for (annotation in pageAnnotations) {
                         if (annotation is PdfAnnotation.Ink) {
+                            val baseColor = AnnotationColorThemeAdapter.resolveDisplayColor(annotation.color, colorMode)
                             val strokeColor = if (annotation.isHighlighter) {
-                                Color(annotation.color).copy(alpha = 0.40f)
+                                baseColor.copy(alpha = if (colorMode == ReadingColorMode.NORMAL) 0.40f else 0.55f)
                             } else {
-                                Color(annotation.color)
+                                baseColor
                             }
-                            val blendMode = if (annotation.isHighlighter) BlendMode.Multiply else BlendMode.SrcOver
+                            val blendMode = if (annotation.isHighlighter) {
+                                AnnotationColorThemeAdapter.resolveHighlighterBlendMode(colorMode)
+                            } else {
+                                BlendMode.SrcOver
+                            }
                             val strokeWidthPx = annotation.strokeWidthDp * density.density
 
                             for (stroke in annotation.strokes) {

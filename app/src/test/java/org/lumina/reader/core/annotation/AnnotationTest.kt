@@ -1,8 +1,10 @@
 package org.lumina.reader.core.annotation
 
+import androidx.compose.ui.graphics.BlendMode
 import org.junit.Assert.*
 import org.junit.Test
 import org.lumina.reader.core.crop.PageCropper2
+import org.lumina.reader.core.model.ReadingColorMode
 
 class AnnotationTest {
 
@@ -304,6 +306,69 @@ class AnnotationTest {
 
             assertEquals("下页 X 坐标完全对齐零漂移", touchX, renderedScreenX, 0.001f)
             assertEquals("下页 Y 坐标完全对齐零漂移", touchY, renderedScreenY, 0.001f)
+        }
+    }
+
+    @Test
+    fun testAnnotationColorThemeAdapterNormalMode() {
+        val originalColor = 0xFF212121L
+        val resolved = AnnotationColorThemeAdapter.resolveDisplayColorLong(originalColor, ReadingColorMode.NORMAL)
+        assertEquals("日间模式下色值保持完全一致", originalColor, resolved)
+        assertEquals("日间模式下荧光笔采用 Multiply", BlendMode.Multiply, AnnotationColorThemeAdapter.resolveHighlighterBlendMode(ReadingColorMode.NORMAL))
+    }
+
+    @Test
+    fun testAnnotationColorThemeAdapterNightModeInversion() {
+        // 1. 碳素黑 (33, 33, 33) 在 AMOLED_DARK 下反转为明亮银白 (178, 178, 178)
+        val blackColor = 0xFF212121L
+        val amoledInverted = AnnotationColorThemeAdapter.resolveDisplayColorLong(blackColor, ReadingColorMode.AMOLED_DARK)
+        val rAmoled = ((amoledInverted shr 16) and 0xFF).toInt()
+        val gAmoled = ((amoledInverted shr 8) and 0xFF).toInt()
+        val bAmoled = (amoledInverted and 0xFF).toInt()
+        assertEquals(178, rAmoled)
+        assertEquals(178, gAmoled)
+        assertEquals(178, bAmoled)
+
+        // 2. 碳素黑 (33, 33, 33) 在 SOFT_DARK 下反转为温润白 (190, 196, 205)
+        val softInverted = AnnotationColorThemeAdapter.resolveDisplayColorLong(blackColor, ReadingColorMode.SOFT_DARK)
+        val rSoft = ((softInverted shr 16) and 0xFF).toInt()
+        val gSoft = ((softInverted shr 8) and 0xFF).toInt()
+        val bSoft = (softInverted and 0xFF).toInt()
+        assertEquals(190, rSoft)
+        assertEquals(196, gSoft)
+        assertEquals(205, bSoft)
+
+        // 3. 纯黑 (0, 0, 0) 在 AMOLED_DARK 下反转为 (204, 204, 204)
+        val pureBlack = 0xFF000000L
+        val pureBlackInverted = AnnotationColorThemeAdapter.resolveDisplayColorLong(pureBlack, ReadingColorMode.AMOLED_DARK)
+        assertEquals(204, ((pureBlackInverted shr 16) and 0xFF).toInt())
+        assertEquals(204, ((pureBlackInverted shr 8) and 0xFF).toInt())
+        assertEquals(204, (pureBlackInverted and 0xFF).toInt())
+
+        // 4. 夜间模式高亮笔混合模式应为 Screen
+        assertEquals(BlendMode.Screen, AnnotationColorThemeAdapter.resolveHighlighterBlendMode(ReadingColorMode.SOFT_DARK))
+        assertEquals(BlendMode.Screen, AnnotationColorThemeAdapter.resolveHighlighterBlendMode(ReadingColorMode.AMOLED_DARK))
+    }
+
+    @Test
+    fun testAnnotationPaletteContrastInNightMode() {
+        val palette = listOf(
+            0xFF0066FFL, // 品牌天蓝
+            0xFFE53935L, // 醒目烈红
+            0xFFFFB300L, // 荧光琥珀
+            0xFF43A047L, // 护眼清绿
+            0xFF8E24AAL, // 典雅紫罗兰
+            0xFF212121L  // 纯黑碳素
+        )
+
+        for (color in palette) {
+            val colorSoft = AnnotationColorThemeAdapter.resolveDisplayColor(color, ReadingColorMode.SOFT_DARK)
+            val maxSoft = maxOf(colorSoft.red, colorSoft.green, colorSoft.blue)
+            assertTrue("柔和夜间模式下各色块均具备明亮视觉通道 (>=0.55): $color", maxSoft >= 0.55f)
+
+            val colorAmoled = AnnotationColorThemeAdapter.resolveDisplayColor(color, ReadingColorMode.AMOLED_DARK)
+            val maxAmoled = maxOf(colorAmoled.red, colorAmoled.green, colorAmoled.blue)
+            assertTrue("AMOLED夜间模式下各色块均具备明亮视觉通道 (>=0.55): $color", maxAmoled >= 0.55f)
         }
     }
 }
