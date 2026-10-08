@@ -195,4 +195,58 @@ class PdfDocumentExporterTest {
             tempFolder.deleteRecursively()
         }
     }
+
+    @Test
+    fun testExportPdfWithRotatedPageAnnotations() = runBlocking {
+        val samplePdfBytes = createSamplePdf(1)
+
+        val inkAnnot = PdfAnnotation.Ink(
+            pageIndex = 0,
+            color = 0xFF0000FF, // 蓝色
+            strokeWidthDp = 3f,
+            isHighlighter = false,
+            strokes = listOf(
+                listOf(
+                    NormalizedPoint(0.2f, 0.3f),
+                    NormalizedPoint(0.8f, 0.7f)
+                )
+            )
+        )
+
+        // 旋转 90 度导出
+        val pageSpecs = listOf(
+            PageEditSpec(originalPageIndex = 0, rotationDegrees = 90)
+        )
+
+        val output = ByteArrayOutputStream()
+        PdfDocumentExporter.exportPdf(
+            inputStream = ByteArrayInputStream(samplePdfBytes),
+            outputStream = output,
+            annotations = mapOf(0 to listOf(inkAnnot)),
+            pageSpecs = pageSpecs
+        )
+
+        val exportedBytes = output.toByteArray()
+        assertTrue(exportedBytes.isNotEmpty())
+
+        val verifyDoc = PDDocument.load(ByteArrayInputStream(exportedBytes))
+        try {
+            assertEquals(1, verifyDoc.numberOfPages)
+            val page = verifyDoc.getPage(0)
+            assertEquals(90, page.rotation)
+            val annots = page.annotations
+            assertEquals(1, annots.size)
+            val markup = annots[0] as PDAnnotationMarkup
+            assertEquals(PDAnnotationMarkup.SUB_TYPE_INK, markup.subtype)
+            val coords = markup.inkList[0]
+            assertEquals(4, coords.size) // 2 points * 2 coords = 4
+            // 验证 90 度旋转后的坐标映射：xPdf = yNorm * width, yPdf = xNorm * height
+            val expectedX0 = 0.3f * page.mediaBox.width
+            val expectedY0 = 0.2f * page.mediaBox.height
+            assertEquals(expectedX0, coords[0], 0.5f)
+            assertEquals(expectedY0, coords[1], 0.5f)
+        } finally {
+            verifyDoc.close()
+        }
+    }
 }

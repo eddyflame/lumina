@@ -6,7 +6,10 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.lumina.reader.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,6 +70,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val repository = DocumentRepository(application)
     private val themePreferences = ThemePreferences(application)
     private val undoRedoManager = UndoRedoManager()
+
+    private var saveProgressJob: Job? = null
+    private var prefetchJob: Job? = null
 
     private val _uiState = MutableStateFlow(ViewerUiState())
     val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
@@ -148,6 +154,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         errorMessage = null
                     )
                 }
+                schedulePrefetch(doc.initialPage, doc.pageCount)
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -228,8 +235,9 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(isLandscape = landscape) }
     }
 
-    /** 退出阅读器时一次性重置全屏与横屏状态，避免多次 state update */
+    /** 退出阅读器时一次性重置全屏与横屏状态，并立即持久化阅读进度 */
     fun resetViewerModes() {
+        flushProgressSave()
         _uiState.update {
             it.copy(isFullscreen = false, isLandscape = false, isOverlayVisible = true)
         }
@@ -240,7 +248,50 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             _uiState.update { it.copy(currentPageIndex = index) }
             val doc = _uiState.value.documentInfo
             if (doc != null) {
-                repository.saveProgress(doc.uri, doc.title, doc.pageCount, index)
+                // 防抖持久化阅读进度 (600ms 窗口)，彻底根除快速连续滚动时的磁盘 I/O 争用
+                saveProgressJob?.cancel()
+                saveProgressJob = viewModelScope.launch(Dispatchers.IO) {
+                    delay(600)
+                    repository.saveProgress(doc.uri, doc.title, doc.pageCount, index)
+                }
+
+                // 异步预加载前后相邻页面元数据与裁切边界
+                schedulePrefetch(index, doc.pageCount)
+            }
+        }
+    }
+
+    /**
+     * 立即将当前阅读进度刷入数据库，保证退出或切换时数据零丢失
+     */
+    fun flushProgressSave() {
+        val doc = _uiState.value.documentInfo ?: return
+        val index = _uiState.value.currentPageIndex
+        saveProgressJob?.cancel()
+        repository.saveProgress(doc.uri, doc.title, doc.pageCount, index)
+    }
+
+    private fun schedulePrefetch(currentIndex: Int, pageCount: Int) {
+        prefetchJob?.cancel()
+        prefetchJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(350) // 错开当前页首帧渲染的 CPU/Lock 高峰
+            // 优先预加载下一页
+            if (currentIndex + 1 < pageCount) {
+                try {
+                    repository.pdfEngine.getPageInfo(currentIndex + 1)
+                    if (_uiState.value.isAutoCropEnabled) {
+                        repository.pdfEngine.calculateCropBounds(currentIndex + 1)
+                    }
+                } catch (_: Exception) {}
+            }
+            // 其次预加载上一页
+            if (currentIndex - 1 >= 0) {
+                try {
+                    repository.pdfEngine.getPageInfo(currentIndex - 1)
+                    if (_uiState.value.isAutoCropEnabled) {
+                        repository.pdfEngine.calculateCropBounds(currentIndex - 1)
+                    }
+                } catch (_: Exception) {}
             }
         }
     }
@@ -475,6 +526,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
+        flushProgressSave()
         repository.pdfEngine.close()
     }
 }
