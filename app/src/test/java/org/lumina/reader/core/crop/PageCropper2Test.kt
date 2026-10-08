@@ -379,4 +379,38 @@ class PageCropper2Test {
         println("Left border touching edge bounds: $bounds")
         assertTrue("Left bound must be 0f or near 0f, not skipping edge content (was ${bounds.left})", bounds.left <= 0.02f)
     }
+
+    /**
+     * 测试双栏论文中存在段落间隙 (留白空行) 时，点击空行区域依然能够精准识别列边界
+     */
+    @Test
+    fun testDoubleColumnDetectionWithParagraphBreak() {
+        val width = 400
+        val height = 600
+        val pixels = IntArray(width * height) { white }
+
+        // 左栏：x = 50..180，包含两段文字与 38px 的段落留白 (y = 281..319)
+        for (y in 100..280) {
+            for (x in 50..180) {
+                pixels[y * width + x] = black
+            }
+        }
+        for (y in 320..500) {
+            for (x in 50..180) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        // 右栏：x = 220..350
+        for (y in 100..500) {
+            for (x in 220..350) {
+                pixels[y * width + x] = black
+            }
+        }
+
+        // 点击左栏段落间空行 (x = 100/400 = 0.25, y = 300/600 = 0.5)
+        val leftCol = PageCropper2.getColumn(pixels, width, height, 0.25f, 0.5f)
+        assertTrue("Left column left bound should be near 50/400=0.125 (was ${leftCol.left})", leftCol.left in 0.08f..0.15f)
+        assertTrue("Left column right bound should be near gap 180/400=0.45 (was ${leftCol.right})", leftCol.right in 0.44f..0.52f)
+    }
 }

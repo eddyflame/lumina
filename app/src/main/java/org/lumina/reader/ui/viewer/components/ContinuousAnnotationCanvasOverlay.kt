@@ -183,8 +183,16 @@ private fun commitContinuousStroke(
 
         for (segment in segmentsInPage) {
             val normalizedPoints = segment.map { pt ->
-                val localX = pt.x
-                val localY = (pt.y - contentTop).coerceIn(0f, contentHeightPx)
+                val rawLocalX = pt.x
+                val rawLocalY = (pt.y - contentTop).coerceIn(0f, contentHeightPx)
+
+                val (localX, localY) = unrotatePoint(
+                    rawLocalX,
+                    rawLocalY,
+                    viewportWidth,
+                    contentHeightPx,
+                    spec.normalizedRotation
+                )
 
                 val normX = (activeCrop.left + (localX / viewportWidth) * activeCrop.width).coerceIn(0f, 1f)
                 val normY = (activeCrop.top + (localY / contentHeightPx) * activeCrop.height).coerceIn(0f, 1f)
@@ -225,8 +233,16 @@ private fun eraseAtViewportOffset(
     if (offset.y > contentTop + contentHeightPx) return
     val viewportWidth = listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(1f)
 
-    val localX = offset.x
-    val localY = (offset.y - contentTop).coerceIn(0f, contentHeightPx)
+    val rawLocalX = offset.x
+    val rawLocalY = (offset.y - contentTop).coerceIn(0f, contentHeightPx)
+
+    val (localX, localY) = unrotatePoint(
+        rawLocalX,
+        rawLocalY,
+        viewportWidth,
+        contentHeightPx,
+        spec.normalizedRotation
+    )
 
     val cropBounds = if (uiState.isAutoCropEnabled) {
         viewModel.getCachedCropBounds(originalPageIndex)
@@ -239,6 +255,37 @@ private fun eraseAtViewportOffset(
     val normY = (activeCrop.top + (localY / contentHeightPx) * activeCrop.height).coerceIn(0f, 1f)
 
     viewModel.eraseAnnotationAt(originalPageIndex, NormalizedPoint(normX, normY))
+}
+
+/**
+ * 将视口触控点按页面旋转角进行逆向旋转补偿，消除旋转图层下的手绘与擦除错位
+ */
+private fun unrotatePoint(
+    localX: Float,
+    localY: Float,
+    width: Float,
+    height: Float,
+    rotationDegrees: Int
+): Pair<Float, Float> {
+    val normRot = ((rotationDegrees % 360) + 360) % 360
+    if (normRot == 0) return Pair(localX, localY)
+
+    val cx = width / 2f
+    val cy = height / 2f
+    val dx = localX - cx
+    val dy = localY - cy
+
+    return when (normRot) {
+        90 -> Pair(cx + dy, cy - dx)
+        180 -> Pair(cx - dx, cy - dy)
+        270 -> Pair(cx - dy, cy + dx)
+        else -> {
+            val rad = Math.toRadians(-normRot.toDouble())
+            val cosA = Math.cos(rad).toFloat()
+            val sinA = Math.sin(rad).toFloat()
+            Pair(cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA)
+        }
+    }
 }
 
 /**

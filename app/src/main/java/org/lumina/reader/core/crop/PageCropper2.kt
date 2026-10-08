@@ -298,13 +298,15 @@ object PageCropper2 {
         var blackFound = false
         val pointX = (width * xRatio).toInt().coerceIn(0, width - 1)
         val pointY = (height * yRatio).toInt().coerceIn(0, height - 1)
-        val top = max(0, pointY - COLUMN_HALF_HEIGHT)
-        val bottom = min(height - 1, pointY + COLUMN_HALF_HEIGHT)
+        val scanHalfH = max(height / 10, COLUMN_HALF_HEIGHT)
+        val top = max(0, pointY - scanHalfH)
+        val bottom = min(height - 1, pointY + scanHalfH)
+        val scanH = max(1, bottom - top)
 
         var left = pointX
         while (left >= 0) {
             val isWhite = isRectWhite(
-                pixels, width, height, left, top, COLUMN_WIDTH, bottom - top, avgLum
+                pixels, width, height, left, top, COLUMN_WIDTH, scanH, avgLum
             )
             if (isWhite) {
                 if (blackFound) {
@@ -324,13 +326,15 @@ object PageCropper2 {
         var blackFound = false
         val pointX = (width * xRatio).toInt().coerceIn(0, width - 1)
         val pointY = (height * yRatio).toInt().coerceIn(0, height - 1)
-        val top = max(0, pointY - COLUMN_HALF_HEIGHT)
-        val bottom = min(height - 1, pointY + COLUMN_HALF_HEIGHT)
+        val scanHalfH = max(height / 10, COLUMN_HALF_HEIGHT)
+        val top = max(0, pointY - scanHalfH)
+        val bottom = min(height - 1, pointY + scanHalfH)
+        val scanH = max(1, bottom - top)
 
         var left = pointX
         while (left < width - COLUMN_WIDTH) {
             val isWhite = isRectWhite(
-                pixels, width, height, left, top, COLUMN_WIDTH, bottom - top, avgLum
+                pixels, width, height, left, top, COLUMN_WIDTH, scanH, avgLum
             )
             if (isWhite) {
                 if (blackFound) {

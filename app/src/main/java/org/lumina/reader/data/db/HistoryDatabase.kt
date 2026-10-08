@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import kotlinx.coroutines.SupervisorJob
+
 /**
  * 极简、零依赖、高性能本地阅读历史持久化数据库
  *
@@ -19,7 +21,7 @@ import kotlinx.coroutines.withContext
  */
 class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _recentDocsFlow = MutableStateFlow<List<RecentDocument>>(emptyList())
     val recentDocsFlow: StateFlow<List<RecentDocument>> = _recentDocsFlow.asStateFlow()
 

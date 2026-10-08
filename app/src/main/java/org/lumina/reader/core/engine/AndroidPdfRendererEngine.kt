@@ -14,7 +14,10 @@ import org.lumina.reader.core.crop.PageCropper2
 import org.lumina.reader.core.model.PageInfo
 import org.lumina.reader.core.model.PdfDocumentInfo
 import org.lumina.reader.core.model.PdfOutlineItem
+import java.io.FileInputStream
 import java.io.IOException
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.math.roundToInt
 
 /**
@@ -28,7 +31,10 @@ class AndroidPdfRendererEngine(
     private var renderer: PdfRenderer? = null
     private var docInfo: PdfDocumentInfo? = null
 
-    private val mutex = Mutex()
+    private val renderLock = ReentrantLock()
+    @Volatile
+    private var isClosed = false
+
     private val pageInfoCache = mutableMapOf<Int, PageInfo>()
     private val cropBoundsCache = mutableMapOf<Int, PageCropper2.CropBounds>()
 
@@ -38,8 +44,9 @@ class AndroidPdfRendererEngine(
         pfd: ParcelFileDescriptor,
         initialPage: Int
     ): PdfDocumentInfo = withContext(Dispatchers.IO) {
-        mutex.withLock {
+        renderLock.withLock {
             closeInternal()
+            isClosed = false
             this@AndroidPdfRendererEngine.pfd = pfd
             try {
                 val newRenderer = PdfRenderer(pfd)
@@ -65,7 +72,8 @@ class AndroidPdfRendererEngine(
     override suspend fun getPageInfo(pageIndex: Int): PageInfo = withContext(Dispatchers.IO) {
         pageInfoCache[pageIndex]?.let { return@withContext it }
 
-        mutex.withLock {
+        renderLock.withLock {
+            if (isClosed) throw IllegalStateException("PDF 引擎已关闭")
             val r = renderer ?: throw IllegalStateException("PDF 引擎尚未初始化")
             if (pageIndex < 0 || pageIndex >= r.pageCount) {
                 throw IndexOutOfBoundsException("页码超出范围: $pageIndex, 总页数: ${r.pageCount}")
@@ -92,7 +100,8 @@ class AndroidPdfRendererEngine(
         val cacheKey = "page_${pageIndex}_${targetWidth}x${targetHeight}"
         bitmapCache.get(cacheKey)?.let { return@withContext it }
 
-        mutex.withLock {
+        renderLock.withLock {
+            if (isClosed) throw IllegalStateException("PDF 引擎已关闭")
             bitmapCache.get(cacheKey)?.let { return@withLock it }
 
             val r = renderer ?: throw IllegalStateException("PDF 引擎尚未初始化")
@@ -112,7 +121,8 @@ class AndroidPdfRendererEngine(
     override suspend fun calculateCropBounds(pageIndex: Int): PageCropper2.CropBounds = withContext(Dispatchers.IO) {
         cropBoundsCache[pageIndex]?.let { return@withContext it }
 
-        mutex.withLock {
+        renderLock.withLock {
+            if (isClosed) throw IllegalStateException("PDF 引擎已关闭")
             cropBoundsCache[pageIndex]?.let { return@withLock it }
 
             val r = renderer ?: throw IllegalStateException("PDF 引擎尚未初始化")
@@ -141,7 +151,8 @@ class AndroidPdfRendererEngine(
         tapX: Float,
         tapY: Float
     ): PageCropper2.CropBounds = withContext(Dispatchers.IO) {
-        mutex.withLock {
+        renderLock.withLock {
+            if (isClosed) throw IllegalStateException("PDF 引擎已关闭")
             val r = renderer ?: throw IllegalStateException("PDF 引擎尚未初始化")
             val page = r.openPage(pageIndex)
 
@@ -164,33 +175,24 @@ class AndroidPdfRendererEngine(
     }
 
     override suspend fun getOutlines(): List<PdfOutlineItem> = withContext(Dispatchers.IO) {
-        val total = docInfo?.pageCount ?: 0
-        if (total == 0) return@withContext emptyList()
-
-        // 默认按章节/分页生成快速索引大纲
-        val isZh = java.util.Locale.getDefault().language.startsWith("zh")
-        val step = if (total > 50) 10 else 5
-        val list = mutableListOf<PdfOutlineItem>()
-        val startLabel = if (isZh) "第 1 页 · 起始页" else "Page 1 · Start"
-        list.add(PdfOutlineItem(startLabel, 0, level = 0))
-
-        for (p in step until total step step) {
-            val pageLabel = if (isZh) "第 ${p + 1} 页" else "Page ${p + 1}"
-            list.add(PdfOutlineItem(pageLabel, p, level = 0))
+        val currentPfd = pfd ?: return@withContext emptyList()
+        try {
+            val dupPfd = currentPfd.dup() ?: return@withContext emptyList()
+            dupPfd.use { dpfd ->
+                FileInputStream(dpfd.fileDescriptor).use { stream ->
+                    PdfOutlineExtractor.extractOutlines(stream)
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
-
-        if (total > 1 && (total - 1) % step != 0) {
-            val endLabel = if (isZh) "第 $total 页 · 结尾" else "Page $total · End"
-            list.add(PdfOutlineItem(endLabel, total - 1, level = 0))
-        }
-
-        list
     }
 
     override suspend fun reload(pfd: ParcelFileDescriptor): PdfDocumentInfo = withContext(Dispatchers.IO) {
-        mutex.withLock {
+        renderLock.withLock {
             val oldDoc = docInfo ?: throw IllegalStateException("文档尚未打开，无法执行热重载")
             closeInternal()
+            isClosed = false
             this@AndroidPdfRendererEngine.pfd = pfd
             try {
                 val newRenderer = PdfRenderer(pfd)
@@ -222,13 +224,9 @@ class AndroidPdfRendererEngine(
     }
 
     override fun close() {
-        val acquired = mutex.tryLock()
-        try {
+        isClosed = true
+        renderLock.withLock {
             closeInternal()
-        } finally {
-            if (acquired) {
-                mutex.unlock()
-            }
         }
     }
 

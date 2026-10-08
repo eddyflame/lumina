@@ -101,7 +101,7 @@ object PdfDocumentExporter {
                     if (spec.originalPageIndex in 0 until originalPageCount) {
                         val page = originalPages[spec.originalPageIndex]
                         if (spec.normalizedRotation != 0) {
-                            page.rotation = (page.rotation + spec.normalizedRotation) % 360
+                            page.rotation = ((page.rotation + spec.normalizedRotation) % 360 + 360) % 360
                         }
                         val pageAnnots = annotations[spec.originalPageIndex]
                         if (!pageAnnots.isNullOrEmpty()) {
@@ -141,6 +141,7 @@ object PdfDocumentExporter {
         val pageHeightPt = box.height
         val originX = box.lowerLeftX
         val originY = box.lowerLeftY
+        val pageRotation = ((page.rotation % 360) + 360) % 360
 
         val currentAnnots = (page.annotations ?: emptyList()).toMutableList()
 
@@ -169,7 +170,7 @@ object PdfDocumentExporter {
                     borderStyle.width = annotation.strokeWidthDp
                     inkAnnot.borderStyle = borderStyle
 
-                    // 将归一化笔画映射为 PDF 物理点坐标并求包围盒
+                    // 将归一化笔画映射为 PDF 物理点坐标并求包围盒 (考虑页面旋转角)
                     var minPdfX = Float.MAX_VALUE
                     var minPdfY = Float.MAX_VALUE
                     var maxPdfX = Float.MIN_VALUE
@@ -185,7 +186,8 @@ object PdfDocumentExporter {
                             val (pdfLocalX, pdfLocalY) = PageCoordinateTransformer.normalizedToPdfPoint(
                                 normPt,
                                 pageWidthPt,
-                                pageHeightPt
+                                pageHeightPt,
+                                pageRotation
                             )
                             val pdfX = originX + pdfLocalX
                             val pdfY = originY + pdfLocalY

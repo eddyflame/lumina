@@ -46,6 +46,39 @@ class AnnotationTest {
     }
 
     @Test
+    fun testPdfPointInversionWithRotations() {
+        val pageW = 595f
+        val pageH = 842f
+        val testPoints = listOf(
+            NormalizedPoint(0f, 0f),
+            NormalizedPoint(1f, 0f),
+            NormalizedPoint(0f, 1f),
+            NormalizedPoint(1f, 1f),
+            NormalizedPoint(0.35f, 0.65f)
+        )
+        val rotations = listOf(0, 90, 180, 270, 360, 450, -90)
+
+        for (rot in rotations) {
+            for (pt in testPoints) {
+                val (pdfX, pdfY) = PageCoordinateTransformer.normalizedToPdfPoint(pt, pageW, pageH, rot)
+                val recovered = PageCoordinateTransformer.pdfPointToNormalized(pdfX, pdfY, pageW, pageH, rot)
+                assertEquals("Round trip failed for x at rotation $rot", pt.x, recovered.x, 0.001f)
+                assertEquals("Round trip failed for y at rotation $rot", pt.y, recovered.y, 0.001f)
+            }
+        }
+
+        // 针对 90° 的物理点特性校验：屏幕左上角 (0, 0) 映射到未旋转用户空间的 (0, 0)
+        val (rot90X, rot90Y) = PageCoordinateTransformer.normalizedToPdfPoint(NormalizedPoint(0f, 0f), pageW, pageH, 90)
+        assertEquals(0f, rot90X, 0.001f)
+        assertEquals(0f, rot90Y, 0.001f)
+
+        // 针对 90° 的物理点特性校验：屏幕右上角 (1, 0) 映射到用户空间 (0, pageH)
+        val (rot90TopRightX, rot90TopRightY) = PageCoordinateTransformer.normalizedToPdfPoint(NormalizedPoint(1f, 0f), pageW, pageH, 90)
+        assertEquals(0f, rot90TopRightX, 0.001f)
+        assertEquals(pageH, rot90TopRightY, 0.001f)
+    }
+
+    @Test
     fun testInkIntersectionForEraser() {
         // 创建一条从 (0.2, 0.2) 到 (0.8, 0.8) 的对角线笔迹
         val stroke = listOf(

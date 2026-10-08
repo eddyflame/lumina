@@ -80,16 +80,18 @@ fun PdfPageView(
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }
 
-    var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var cropBounds by remember { mutableStateOf(PageCropper2.CropBounds.FULL) }
+    var pageBitmap by remember(pageIndex) { mutableStateOf<Bitmap?>(null) }
+    var cropBounds by remember(pageIndex) {
+        mutableStateOf(viewModel.getCachedCropBounds(pageIndex) ?: PageCropper2.CropBounds.FULL)
+    }
 
-    // 缩放手势状态
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    var offsetY by remember { mutableFloatStateOf(0f) }
+    // 缩放手势状态 (按 pageIndex 记忆，避免 LazyColumn 回收复用时状态污染)
+    var scale by remember(pageIndex) { mutableFloatStateOf(1f) }
+    var offsetX by remember(pageIndex) { mutableFloatStateOf(0f) }
+    var offsetY by remember(pageIndex) { mutableFloatStateOf(0f) }
 
     // 当前正在手绘中的未闭合笔迹点序列
-    var activeStrokePoints by remember { mutableStateOf<List<NormalizedPoint>>(emptyList()) }
+    var activeStrokePoints by remember(pageIndex) { mutableStateOf<List<NormalizedPoint>>(emptyList()) }
 
     // 当页面索引、屏幕分辨率或排版模式变化时重新渲染高质量位图
     LaunchedEffect(pageIndex, screenWidthPx, screenHeightPx, layoutMode) {
@@ -111,7 +113,8 @@ fun PdfPageView(
             val renderH = (renderW / aspectRatio).roundToInt().coerceAtLeast(100)
 
             pageBitmap = viewModel.renderPage(pageIndex, renderW, renderH)
-            cropBounds = viewModel.getCropBounds(pageIndex)
+            val cached = viewModel.getCachedCropBounds(pageIndex)
+            cropBounds = cached ?: viewModel.getCropBounds(pageIndex)
         } catch (_: Exception) {
             // 捕获并发重载或加载间隙的偶发异常，优雅降级，防止整个界面闪退
         }

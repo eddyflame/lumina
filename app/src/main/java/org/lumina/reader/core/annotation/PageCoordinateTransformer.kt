@@ -56,16 +56,43 @@ object PageCoordinateTransformer {
 
     /**
      * 归一化坐标 -> ISO 32000-1 标准 PDF 物理点 (72 DPI，原点在左下角)
+     *
+     * 支持自适应页面旋转角度补偿 (0, 90, 180, 270 度)：
+     * 屏幕渲染视图呈现给用户的是直立视图，而 PDF 规范要求 /Annots 字典必须记录在未旋转的默认用户空间中。
+     * 当外部阅读器渲染带 /Rotate 标记的页面时会自动顺时针旋转，因此此处需进行精确逆向映射。
      */
     fun normalizedToPdfPoint(
         point: NormalizedPoint,
         pageWidthPt: Float,
-        pageHeightPt: Float
+        pageHeightPt: Float,
+        rotationDegrees: Int = 0
     ): Pair<Float, Float> {
-        val pdfX = point.x * pageWidthPt
-        // PDF 坐标系 Y 轴朝上，原点在左下角；屏幕 Y 轴朝下，原点在左上角
-        val pdfY = (1f - point.y) * pageHeightPt
-        return Pair(pdfX, pdfY)
+        val normRot = ((rotationDegrees % 360) + 360) % 360
+        val u = point.x
+        val v = point.y
+        return when (normRot) {
+            90 -> {
+                val pdfX = v * pageWidthPt
+                val pdfY = u * pageHeightPt
+                Pair(pdfX, pdfY)
+            }
+            180 -> {
+                val pdfX = (1f - u) * pageWidthPt
+                val pdfY = v * pageHeightPt
+                Pair(pdfX, pdfY)
+            }
+            270 -> {
+                val pdfX = (1f - v) * pageWidthPt
+                val pdfY = (1f - u) * pageHeightPt
+                Pair(pdfX, pdfY)
+            }
+            else -> { // 0°
+                val pdfX = u * pageWidthPt
+                // PDF 坐标系 Y 轴朝上，原点在左下角；屏幕 Y 轴朝下，原点在左上角
+                val pdfY = (1f - v) * pageHeightPt
+                Pair(pdfX, pdfY)
+            }
+        }
     }
 
     /**
@@ -75,11 +102,32 @@ object PageCoordinateTransformer {
         pdfX: Float,
         pdfY: Float,
         pageWidthPt: Float,
-        pageHeightPt: Float
+        pageHeightPt: Float,
+        rotationDegrees: Int = 0
     ): NormalizedPoint {
         if (pageWidthPt <= 0f || pageHeightPt <= 0f) return NormalizedPoint(0f, 0f)
-        val u = (pdfX / pageWidthPt).coerceIn(0f, 1f)
-        val v = (1f - (pdfY / pageHeightPt)).coerceIn(0f, 1f)
-        return NormalizedPoint(u, v)
+        val normRot = ((rotationDegrees % 360) + 360) % 360
+        return when (normRot) {
+            90 -> {
+                val u = (pdfY / pageHeightPt).coerceIn(0f, 1f)
+                val v = (pdfX / pageWidthPt).coerceIn(0f, 1f)
+                NormalizedPoint(u, v)
+            }
+            180 -> {
+                val u = (1f - (pdfX / pageWidthPt)).coerceIn(0f, 1f)
+                val v = (pdfY / pageHeightPt).coerceIn(0f, 1f)
+                NormalizedPoint(u, v)
+            }
+            270 -> {
+                val u = (1f - (pdfY / pageHeightPt)).coerceIn(0f, 1f)
+                val v = (1f - (pdfX / pageWidthPt)).coerceIn(0f, 1f)
+                NormalizedPoint(u, v)
+            }
+            else -> { // 0°
+                val u = (pdfX / pageWidthPt).coerceIn(0f, 1f)
+                val v = (1f - (pdfY / pageHeightPt)).coerceIn(0f, 1f)
+                NormalizedPoint(u, v)
+            }
+        }
     }
 }
