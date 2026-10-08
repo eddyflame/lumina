@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +59,8 @@ fun ViewerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val orientation = configuration.orientation
     val activity = context as? Activity
 
     val docInfo = uiState.documentInfo
@@ -310,7 +313,10 @@ fun ViewerScreen(
                                 userScrollEnabled = uiState.annotationTool == AnnotationTool.NONE,
                                 contentPadding = PaddingValues(0.dp)
                             ) {
-                                items(pageCount) { virtualIndex ->
+                                items(
+                                    count = pageCount,
+                                    key = { index -> effectiveSpecs.getOrNull(index)?.originalPageIndex ?: index }
+                                ) { virtualIndex ->
                                     val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
                                     PdfPageView(
                                         pageIndex = spec.originalPageIndex,
@@ -318,6 +324,7 @@ fun ViewerScreen(
                                         rotationDegrees = spec.normalizedRotation,
                                         isAutoCrop = uiState.isAutoCropEnabled,
                                         activeColumnBounds = uiState.activeColumnBounds,
+                                        activeColumnPageIndex = uiState.activeColumnPageIndex,
                                         colorMode = uiState.colorMode,
                                         colorFilter = pageColorFilter,
                                         viewModel = viewModel,
@@ -370,6 +377,7 @@ fun ViewerScreen(
                                     rotationDegrees = spec.normalizedRotation,
                                     isAutoCrop = uiState.isAutoCropEnabled,
                                     activeColumnBounds = uiState.activeColumnBounds,
+                                    activeColumnPageIndex = uiState.activeColumnPageIndex,
                                     colorMode = uiState.colorMode,
                                     colorFilter = pageColorFilter,
                                     viewModel = viewModel,
@@ -431,9 +439,9 @@ fun ViewerScreen(
                 }
             }
 
-            // 顶部沉浸式工具栏
+            // 顶部沉浸式工具栏 (仅在非注释模式且 Overlay 可见时展示)
             AnimatedVisibility(
-                visible = uiState.isOverlayVisible,
+                visible = uiState.isOverlayVisible && uiState.annotationTool == AnnotationTool.NONE,
                 enter = slideInVertically { -it } + fadeIn(),
                 exit = slideOutVertically { -it } + fadeOut(),
                 modifier = Modifier.align(Alignment.TopCenter)

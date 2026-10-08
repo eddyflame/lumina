@@ -29,12 +29,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import android.content.res.Configuration
+import kotlin.math.max
 import kotlin.math.min
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import org.lumina.reader.core.annotation.AnnotationTool
@@ -62,6 +65,7 @@ fun PdfPageView(
     rotationDegrees: Int = 0,
     isAutoCrop: Boolean,
     activeColumnBounds: PageCropper2.CropBounds?,
+    activeColumnPageIndex: Int? = null,
     colorMode: ReadingColorMode = ReadingColorMode.NORMAL,
     colorFilter: ColorFilter?,
     viewModel: ViewerViewModel,
@@ -75,29 +79,42 @@ fun PdfPageView(
     onEraseAnnotation: (pageIndex: Int, point: NormalizedPoint) -> Unit,
     onTap: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
+    val context = LocalContext.current
     val density = LocalDensity.current
-    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }
-    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }
+    val configuration = LocalConfiguration.current
+    val orientation = configuration.orientation
+    val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
+    val metricsW = context.resources.displayMetrics.widthPixels
+    val metricsH = context.resources.displayMetrics.heightPixels
+    val screenWidthPx = if (isLandscape) max(metricsW, metricsH) else min(metricsW, metricsH)
+    val screenHeightPx = if (isLandscape) min(metricsW, metricsH) else max(metricsW, metricsH)
+
+    val cachedInfo = viewModel.getCachedPageInfo(pageIndex)
+    var pageAspect by remember(pageIndex) {
+        val r = if (cachedInfo != null && cachedInfo.height > 0) cachedInfo.width.toFloat() / cachedInfo.height.toFloat() else 0.707f
+        mutableFloatStateOf(r)
+    }
 
     var pageBitmap by remember(pageIndex) { mutableStateOf<Bitmap?>(null) }
     var cropBounds by remember(pageIndex) {
         mutableStateOf(viewModel.getCachedCropBounds(pageIndex) ?: PageCropper2.CropBounds.FULL)
     }
 
-    // 缩放手势状态 (按 pageIndex 记忆，避免 LazyColumn 回收复用时状态污染)
-    var scale by remember(pageIndex) { mutableFloatStateOf(1f) }
-    var offsetX by remember(pageIndex) { mutableFloatStateOf(0f) }
-    var offsetY by remember(pageIndex) { mutableFloatStateOf(0f) }
+    // 缩放手势状态 (按 pageIndex 与屏幕方向记忆，屏幕旋转时自动重置防越界)
+    var scale by remember(pageIndex, orientation) { mutableFloatStateOf(1f) }
+    var offsetX by remember(pageIndex, orientation) { mutableFloatStateOf(0f) }
+    var offsetY by remember(pageIndex, orientation) { mutableFloatStateOf(0f) }
 
     // 当前正在手绘中的未闭合笔迹点序列
     var activeStrokePoints by remember(pageIndex) { mutableStateOf<List<NormalizedPoint>>(emptyList()) }
+    var activeEraserOffset by remember(pageIndex) { mutableStateOf<Offset?>(null) }
 
-    // 当页面索引、屏幕分辨率或排版模式变化时重新渲染高质量位图
-    LaunchedEffect(pageIndex, screenWidthPx, screenHeightPx, layoutMode) {
+    // 当页面索引、屏幕方向、屏幕分辨率、排版模式或智能切边状态变化时重新加载
+    LaunchedEffect(pageIndex, orientation, screenWidthPx, screenHeightPx, layoutMode, isAutoCrop) {
         try {
             val info = viewModel.getPageInfo(pageIndex)
             val aspectRatio = info.width.toFloat() / info.height.toFloat()
+            pageAspect = aspectRatio
 
             val renderW = if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) {
                 val fitByWidthH = screenWidthPx / aspectRatio
@@ -113,25 +130,29 @@ fun PdfPageView(
             val renderH = (renderW / aspectRatio).roundToInt().coerceAtLeast(100)
 
             pageBitmap = viewModel.renderPage(pageIndex, renderW, renderH)
-            val cached = viewModel.getCachedCropBounds(pageIndex)
-            cropBounds = cached ?: viewModel.getCropBounds(pageIndex)
+            cropBounds = if (isAutoCrop) {
+                viewModel.getCachedCropBounds(pageIndex) ?: viewModel.getCropBounds(pageIndex)
+            } else {
+                PageCropper2.CropBounds.FULL
+            }
         } catch (_: Exception) {
             // 捕获并发重载或加载间隙的偶发异常，优雅降级，防止整个界面闪退
         }
     }
 
     val bitmap = pageBitmap
+    val isColumnFocusedOnThisPage = activeColumnBounds != null && activeColumnPageIndex == pageIndex
     val activeCrop = when {
-        activeColumnBounds != null -> activeColumnBounds
+        isColumnFocusedOnThisPage -> activeColumnBounds!!
         isAutoCrop -> cropBounds
         else -> PageCropper2.CropBounds.FULL
     }
-    val isCropped = isAutoCrop || activeColumnBounds != null
+    val isCropped = isColumnFocusedOnThisPage || (isAutoCrop && activeCrop != PageCropper2.CropBounds.FULL)
     val contentWidthRatio = activeCrop.width.coerceAtLeast(0.1f)
     val contentHeightRatio = activeCrop.height.coerceAtLeast(0.1f)
 
     // 页面与内容区域自适应尺寸计算
-    val rawAspect = if (bitmap != null && bitmap.height > 0) bitmap.width.toFloat() / bitmap.height.toFloat() else 1f
+    val rawAspect = if (bitmap != null && bitmap.height > 0) bitmap.width.toFloat() / bitmap.height.toFloat() else pageAspect
     val unscaledHeightPx = if (rawAspect > 0f) screenWidthPx.toFloat() / rawAspect else screenWidthPx.toFloat()
     val croppedHeightPx = if (isCropped) unscaledHeightPx * (contentHeightRatio / contentWidthRatio) else unscaledHeightPx
 
@@ -144,8 +165,8 @@ fun PdfPageView(
             .clipToBounds()
 
         val cMod = Modifier
-            .width(with(density) { screenWidthPx.toDp() })
-            .height(with(density) { unscaledHeightPx.toDp() })
+            .requiredWidth(with(density) { screenWidthPx.toDp() })
+            .requiredHeight(with(density) { unscaledHeightPx.toDp() })
             .graphicsLayer {
                 if (rotationDegrees != 0) {
                     rotationZ = rotationDegrees.toFloat()
@@ -354,6 +375,7 @@ fun PdfPageView(
                         Modifier.pointerInput(pageIndex, pageCount) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
+                                activeEraserOffset = down.position
                                 val w = size.width.toFloat()
                                 val h = size.height.toFloat()
                                 val startPt = PageCoordinateTransformer.canvasToNormalized(
@@ -366,6 +388,7 @@ fun PdfPageView(
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     if (change.pressed) {
                                         change.consume()
+                                        activeEraserOffset = change.position
                                         val currY = change.position.y
                                         val currX = change.position.x
                                         val targetPageIndex = when {
@@ -384,6 +407,7 @@ fun PdfPageView(
                                         break
                                     }
                                 }
+                                activeEraserOffset = null
                             }
                         }
                     } else {
@@ -399,29 +423,31 @@ fun PdfPageView(
                     val w = size.width
                     val h = size.height
 
-                    // 1. 绘制已提交的历史注释笔迹
-                    for (annotation in pageAnnotations) {
-                        if (annotation is PdfAnnotation.Ink) {
-                            val strokeColor = if (annotation.isHighlighter) {
-                                Color(annotation.color).copy(alpha = 0.40f)
-                            } else {
-                                Color(annotation.color)
-                            }
-                            val blendMode = if (annotation.isHighlighter) BlendMode.Multiply else BlendMode.SrcOver
-                            val strokeWidthPx = annotation.strokeWidthDp * density.density
+                    // 1. 绘制已提交的历史注释笔迹 (仅在横向单页模式在此画布绘制；纵向瀑布流在页面卡片顶层画布绘制)
+                    if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) {
+                        for (annotation in pageAnnotations) {
+                            if (annotation is PdfAnnotation.Ink) {
+                                val strokeColor = if (annotation.isHighlighter) {
+                                    Color(annotation.color).copy(alpha = 0.40f)
+                                } else {
+                                    Color(annotation.color)
+                                }
+                                val blendMode = if (annotation.isHighlighter) BlendMode.Multiply else BlendMode.SrcOver
+                                val strokeWidthPx = annotation.strokeWidthDp * density.density
 
-                            for (stroke in annotation.strokes) {
-                                val path = buildSmoothBezierPath(stroke, w, h)
-                                drawPath(
-                                    path = path,
-                                    color = strokeColor,
-                                    style = Stroke(
-                                        width = strokeWidthPx,
-                                        cap = StrokeCap.Round,
-                                        join = StrokeJoin.Round
-                                    ),
-                                    blendMode = blendMode
-                                )
+                                for (stroke in annotation.strokes) {
+                                    val path = buildSmoothBezierPath(stroke, w, h)
+                                    drawPath(
+                                        path = path,
+                                        color = strokeColor,
+                                        style = Stroke(
+                                            width = strokeWidthPx,
+                                            cap = StrokeCap.Round,
+                                            join = StrokeJoin.Round
+                                        ),
+                                        blendMode = blendMode
+                                    )
+                                }
                             }
                         }
                     }
@@ -447,6 +473,29 @@ fun PdfPageView(
                             ),
                             blendMode = liveBlendMode
                         )
+                    }
+
+                    // 橡皮擦实时触控反馈光圈 (横向单页模式)
+                    if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL && activeTool == AnnotationTool.ERASER) {
+                        activeEraserOffset?.let { pos ->
+                            val radiusPx = 22.dp.toPx()
+                            drawCircle(
+                                color = Color(0x33FF5252),
+                                radius = radiusPx,
+                                center = pos
+                            )
+                            drawCircle(
+                                color = Color(0xCCFF5252),
+                                radius = radiusPx,
+                                center = pos,
+                                style = Stroke(width = 2.dp.toPx())
+                            )
+                            drawCircle(
+                                color = Color(0xFFFF1744),
+                                radius = 3.dp.toPx(),
+                                center = pos
+                            )
+                        }
                     }
                 }
             }
@@ -481,7 +530,42 @@ fun PdfPageView(
                 modifier = pageModifier,
                 contentAlignment = contentAlignment
             ) {
+                // Layer 1: 底图渲染
                 pageContent()
+
+                // Layer 2: 纵向连续瀑布流专用矢量注释图层 (与视口手绘层绝对坐标 1:1 零漂移映射)
+                Canvas(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    val w = size.width
+                    val h = size.height
+
+                    for (annotation in pageAnnotations) {
+                        if (annotation is PdfAnnotation.Ink) {
+                            val strokeColor = if (annotation.isHighlighter) {
+                                Color(annotation.color).copy(alpha = 0.40f)
+                            } else {
+                                Color(annotation.color)
+                            }
+                            val blendMode = if (annotation.isHighlighter) BlendMode.Multiply else BlendMode.SrcOver
+                            val strokeWidthPx = annotation.strokeWidthDp * density.density
+
+                            for (stroke in annotation.strokes) {
+                                val path = buildContinuousPagePath(stroke, w, h, activeCrop, rotationDegrees)
+                                drawPath(
+                                    path = path,
+                                    color = strokeColor,
+                                    style = Stroke(
+                                        width = strokeWidthPx,
+                                        cap = StrokeCap.Round,
+                                        join = StrokeJoin.Round
+                                    ),
+                                    blendMode = blendMode
+                                )
+                            }
+                        }
+                    }
+                }
             }
             if (showDivider) {
                 PageDivider(
@@ -537,6 +621,55 @@ private fun buildSmoothBezierPath(pts: List<NormalizedPoint>, width: Float, heig
     path.lineTo(last.x * width, last.y * height)
     return path
 }
+
+/**
+ * 纵向连续瀑布流专用贝塞尔曲线构建：
+ * 将归一化点坐标按当前页裁切矩形与旋转角反解映射到卡片视口空间，
+ * 与 ContinuousAnnotationCanvasOverlay 的触控归一化完全互逆，保证手绘提笔零跳变、零漂移。
+ */
+private fun buildContinuousPagePath(
+    pts: List<NormalizedPoint>,
+    width: Float,
+    height: Float,
+    activeCrop: PageCropper2.CropBounds,
+    rotationDegrees: Int
+): Path {
+    val path = Path()
+    if (pts.isEmpty()) return path
+
+    val cropW = activeCrop.width.coerceAtLeast(0.001f)
+    val cropH = activeCrop.height.coerceAtLeast(0.001f)
+
+    fun mapPoint(pt: NormalizedPoint): Offset {
+        val u = (pt.x - activeCrop.left) / cropW
+        val v = (pt.y - activeCrop.top) / cropH
+        val localX = u * width
+        val localY = v * height
+        val (rx, ry) = PageCoordinateTransformer.rotatePoint(localX, localY, width, height, rotationDegrees)
+        return Offset(rx, ry)
+    }
+
+    val first = mapPoint(pts[0])
+    val last = mapPoint(pts.last())
+
+    if (pts.size == 1) {
+        path.moveTo(first.x, first.y)
+        path.lineTo(first.x + 0.1f, first.y + 0.1f)
+        return path
+    }
+
+    path.moveTo(first.x, first.y)
+    for (i in 1 until pts.size) {
+        val prev = mapPoint(pts[i - 1])
+        val curr = mapPoint(pts[i])
+        val midX = (prev.x + curr.x) / 2f
+        val midY = (prev.y + curr.y) / 2f
+        path.quadraticTo(prev.x, prev.y, midX, midY)
+    }
+    path.lineTo(last.x, last.y)
+    return path
+}
+
 
 /**
  * 跨页笔迹几何拆分与归一化分发：

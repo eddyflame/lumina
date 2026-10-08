@@ -12,10 +12,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import org.lumina.reader.core.annotation.AnnotationTool
 import org.lumina.reader.core.annotation.NormalizedPoint
+import org.lumina.reader.core.annotation.PageCoordinateTransformer
 import org.lumina.reader.core.crop.PageCropper2
 import org.lumina.reader.core.model.PageEditSpec
 import org.lumina.reader.ui.viewer.ViewerUiState
@@ -37,6 +39,8 @@ fun ContinuousAnnotationCanvasOverlay(
     viewModel: ViewerViewModel,
     modifier: Modifier = Modifier
 ) {
+    val configuration = LocalConfiguration.current
+    val orientation = configuration.orientation
     val density = LocalDensity.current
     val activeTool = uiState.annotationTool
     val annotationColor = uiState.annotationColor
@@ -44,9 +48,10 @@ fun ContinuousAnnotationCanvasOverlay(
     val isHighlighter = activeTool == AnnotationTool.HIGHLIGHTER
     val dividerHeightPx = with(density) { 18.dp.toPx() }
 
-    var activeRawOffsets by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    var activeRawOffsets by remember(orientation) { mutableStateOf<List<Offset>>(emptyList()) }
+    var eraserPosition by remember(orientation) { mutableStateOf<Offset?>(null) }
 
-    val gestureModifier = Modifier.pointerInput(activeTool, annotationColor, strokeWidthDp) {
+    val gestureModifier = Modifier.pointerInput(activeTool, annotationColor, strokeWidthDp, orientation) {
         if (activeTool == AnnotationTool.PEN || activeTool == AnnotationTool.HIGHLIGHTER) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
@@ -81,6 +86,7 @@ fun ContinuousAnnotationCanvasOverlay(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 down.consume()
+                eraserPosition = down.position
                 eraseAtViewportOffset(
                     offset = down.position,
                     listState = listState,
@@ -95,6 +101,7 @@ fun ContinuousAnnotationCanvasOverlay(
                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                     if (change.pressed) {
                         change.consume()
+                        eraserPosition = change.position
                         eraseAtViewportOffset(
                             offset = change.position,
                             listState = listState,
@@ -107,6 +114,7 @@ fun ContinuousAnnotationCanvasOverlay(
                         break
                     }
                 }
+                eraserPosition = null
             }
         }
     }
@@ -136,6 +144,32 @@ fun ContinuousAnnotationCanvasOverlay(
                 ),
                 blendMode = liveBlendMode
             )
+        }
+
+        // 橡皮擦实时触控反馈光圈
+        if (activeTool == AnnotationTool.ERASER) {
+            eraserPosition?.let { pos ->
+                val radiusPx = 22.dp.toPx()
+                // 半透明感应区
+                drawCircle(
+                    color = Color(0x33FF5252),
+                    radius = radiusPx,
+                    center = pos
+                )
+                // 边框描边
+                drawCircle(
+                    color = Color(0xCCFF5252),
+                    radius = radiusPx,
+                    center = pos,
+                    style = Stroke(width = 2.dp.toPx())
+                )
+                // 精准中心触点
+                drawCircle(
+                    color = Color(0xFFFF1744),
+                    radius = 3.dp.toPx(),
+                    center = pos
+                )
+            }
         }
     }
 }
@@ -170,23 +204,26 @@ private fun commitContinuousStroke(
         val contentBottom = item.offset.toFloat() + item.size.toFloat() - itemDividerPx
         val contentHeightPx = (contentBottom - contentTop).coerceAtLeast(1f)
 
-        // 裁切在当前页面可视内容垂直范围内的笔划段
-        val segmentsInPage = clipStrokeToYRange(rawOffsets, contentTop, contentBottom)
-        if (segmentsInPage.isEmpty()) continue
-
         val cropBounds = if (uiState.isAutoCropEnabled) {
-            viewModel.getCachedCropBounds(originalPageIndex)
+            viewModel.getCachedCropBounds(originalPageIndex) ?: PageCropper2.CropBounds.FULL
         } else {
             PageCropper2.CropBounds.FULL
         }
-        val activeCrop = uiState.activeColumnBounds ?: cropBounds
+        val activeCrop = if (uiState.activeColumnBounds != null && uiState.activeColumnPageIndex == originalPageIndex) {
+            uiState.activeColumnBounds
+        } else {
+            cropBounds
+        }
+
+        val segmentsInPage = clipStrokeToYRange(rawOffsets, contentTop, contentBottom)
+        if (segmentsInPage.isEmpty()) continue
 
         for (segment in segmentsInPage) {
             val normalizedPoints = segment.map { pt ->
-                val rawLocalX = pt.x
+                val rawLocalX = pt.x.coerceIn(0f, viewportWidth)
                 val rawLocalY = (pt.y - contentTop).coerceIn(0f, contentHeightPx)
 
-                val (localX, localY) = unrotatePoint(
+                val (localX, localY) = PageCoordinateTransformer.unrotatePoint(
                     rawLocalX,
                     rawLocalY,
                     viewportWidth,
@@ -233,10 +270,10 @@ private fun eraseAtViewportOffset(
     if (offset.y > contentTop + contentHeightPx) return
     val viewportWidth = listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(1f)
 
-    val rawLocalX = offset.x
+    val rawLocalX = offset.x.coerceIn(0f, viewportWidth)
     val rawLocalY = (offset.y - contentTop).coerceIn(0f, contentHeightPx)
 
-    val (localX, localY) = unrotatePoint(
+    val (localX, localY) = PageCoordinateTransformer.unrotatePoint(
         rawLocalX,
         rawLocalY,
         viewportWidth,
@@ -245,47 +282,20 @@ private fun eraseAtViewportOffset(
     )
 
     val cropBounds = if (uiState.isAutoCropEnabled) {
-        viewModel.getCachedCropBounds(originalPageIndex)
+        viewModel.getCachedCropBounds(originalPageIndex) ?: PageCropper2.CropBounds.FULL
     } else {
         PageCropper2.CropBounds.FULL
     }
-    val activeCrop = uiState.activeColumnBounds ?: cropBounds
+    val activeCrop = if (uiState.activeColumnBounds != null && uiState.activeColumnPageIndex == originalPageIndex) {
+        uiState.activeColumnBounds
+    } else {
+        cropBounds
+    }
 
     val normX = (activeCrop.left + (localX / viewportWidth) * activeCrop.width).coerceIn(0f, 1f)
     val normY = (activeCrop.top + (localY / contentHeightPx) * activeCrop.height).coerceIn(0f, 1f)
 
     viewModel.eraseAnnotationAt(originalPageIndex, NormalizedPoint(normX, normY))
-}
-
-/**
- * 将视口触控点按页面旋转角进行逆向旋转补偿，消除旋转图层下的手绘与擦除错位
- */
-private fun unrotatePoint(
-    localX: Float,
-    localY: Float,
-    width: Float,
-    height: Float,
-    rotationDegrees: Int
-): Pair<Float, Float> {
-    val normRot = ((rotationDegrees % 360) + 360) % 360
-    if (normRot == 0) return Pair(localX, localY)
-
-    val cx = width / 2f
-    val cy = height / 2f
-    val dx = localX - cx
-    val dy = localY - cy
-
-    return when (normRot) {
-        90 -> Pair(cx + dy, cy - dx)
-        180 -> Pair(cx - dx, cy - dy)
-        270 -> Pair(cx - dy, cy + dx)
-        else -> {
-            val rad = Math.toRadians(-normRot.toDouble())
-            val cosA = Math.cos(rad).toFloat()
-            val sinA = Math.sin(rad).toFloat()
-            Pair(cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA)
-        }
-    }
 }
 
 /**

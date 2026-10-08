@@ -45,6 +45,7 @@ data class ViewerUiState(
     val currentPageIndex: Int = 0,
     val isAutoCropEnabled: Boolean = true,
     val activeColumnBounds: PageCropper2.CropBounds? = null,
+    val activeColumnPageIndex: Int? = null,
     val colorMode: ReadingColorMode = ReadingColorMode.NORMAL,
     val layoutMode: ReadingLayoutMode = ReadingLayoutMode.CONTINUOUS_VERTICAL,
     val isOverlayVisible: Boolean = true,
@@ -133,6 +134,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     isLoading = true,
                     errorMessage = null,
                     activeColumnBounds = null,
+                    activeColumnPageIndex = null,
                     isFullscreen = false,
                     isLandscape = false,
                     annotationTool = AnnotationTool.NONE,
@@ -181,8 +183,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         return repository.pdfEngine.calculateCropBounds(pageIndex)
     }
 
-    fun getCachedCropBounds(pageIndex: Int): PageCropper2.CropBounds {
-        return repository.pdfEngine.getCachedCropBounds(pageIndex) ?: PageCropper2.CropBounds.FULL
+    fun getCachedCropBounds(pageIndex: Int): PageCropper2.CropBounds? {
+        return repository.pdfEngine.getCachedCropBounds(pageIndex)
+    }
+
+    fun getCachedPageInfo(pageIndex: Int): PageInfo? {
+        return repository.pdfEngine.getCachedPageInfo(pageIndex)
     }
 
     fun toggleAutoCrop() {
@@ -275,6 +281,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob?.cancel()
         prefetchJob = viewModelScope.launch(Dispatchers.IO) {
             delay(350) // 错开当前页首帧渲染的 CPU/Lock 高峰
+            // 确保当前页裁切已计算缓存
+            if (_uiState.value.isAutoCropEnabled && repository.pdfEngine.getCachedCropBounds(currentIndex) == null) {
+                try {
+                    repository.pdfEngine.calculateCropBounds(currentIndex)
+                } catch (_: Exception) {}
+            }
             // 优先预加载下一页
             if (currentIndex + 1 < pageCount) {
                 try {
@@ -310,12 +322,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun focusColumnAt(pageIndex: Int, tapX: Float, tapY: Float) {
         viewModelScope.launch {
             val colBounds = repository.pdfEngine.calculateColumnBounds(pageIndex, tapX, tapY)
-            _uiState.update { it.copy(activeColumnBounds = colBounds) }
+            _uiState.update { it.copy(activeColumnBounds = colBounds, activeColumnPageIndex = pageIndex) }
         }
     }
 
     fun clearColumnFocus() {
-        _uiState.update { it.copy(activeColumnBounds = null) }
+        _uiState.update { it.copy(activeColumnBounds = null, activeColumnPageIndex = null) }
     }
 
     // 书架操作代理
@@ -330,7 +342,21 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     // ================================= 注释与手写动作 =================================
 
     fun setAnnotationTool(tool: AnnotationTool) {
-        _uiState.update { it.copy(annotationTool = tool) }
+        _uiState.update {
+            if (tool != AnnotationTool.NONE) {
+                it.copy(
+                    annotationTool = tool,
+                    isOverlayVisible = false,
+                    activeColumnBounds = null,
+                    activeColumnPageIndex = null
+                )
+            } else {
+                it.copy(
+                    annotationTool = AnnotationTool.NONE,
+                    isOverlayVisible = true
+                )
+            }
+        }
     }
 
     fun setAnnotationColor(color: Long) {

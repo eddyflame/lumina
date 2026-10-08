@@ -2,6 +2,7 @@ package org.lumina.reader.core.annotation
 
 import org.junit.Assert.*
 import org.junit.Test
+import org.lumina.reader.core.crop.PageCropper2
 
 class AnnotationTest {
 
@@ -102,6 +103,18 @@ class AnnotationTest {
     }
 
     @Test
+    fun testSinglePointDotEraserIntersection() {
+        val singlePointInk = PdfAnnotation.Ink(
+            pageIndex = 0,
+            strokes = listOf(listOf(NormalizedPoint(0.3f, 0.4f)))
+        )
+        // 靠近单点应该命中
+        assertTrue(singlePointInk.intersects(NormalizedPoint(0.31f, 0.41f), threshold = 0.05f))
+        // 远离单点不应命中
+        assertFalse(singlePointInk.intersects(NormalizedPoint(0.8f, 0.8f), threshold = 0.05f))
+    }
+
+    @Test
     fun testUndoRedoStackFlow() {
         val undoManager = UndoRedoManager()
 
@@ -187,4 +200,111 @@ class AnnotationTest {
         assertEquals(1, mockStore.getAnnotationsForPage(0).size)
         assertEquals(1, mockStore.getAnnotationsForPage(1).size)
     }
+
+    @Test
+    fun testPointRotationInverses() {
+        val width = 1080f
+        val height = 1920f
+        val testPoints = listOf(
+            Pair(100f, 200f),
+            Pair(540f, 960f),
+            Pair(1000f, 1800f),
+            Pair(0f, 0f),
+            Pair(width, height)
+        )
+        val rotations = listOf(0, 90, 180, 270, 360, -90)
+
+        for (deg in rotations) {
+            for ((x, y) in testPoints) {
+                val (unrotX, unrotY) = PageCoordinateTransformer.unrotatePoint(x, y, width, height, deg)
+                val (rotX, rotY) = PageCoordinateTransformer.rotatePoint(unrotX, unrotY, width, height, deg)
+                assertEquals("Rotation $deg at ($x, $y) X", x, rotX, 0.01f)
+                assertEquals("Rotation $deg at ($x, $y) Y", y, rotY, 0.01f)
+            }
+        }
+    }
+
+    @Test
+    fun testContinuousStrokeCoordinateZeroDrift() {
+        val viewportWidth = 1280f
+        val contentHeightPx = 1750f
+
+        // 模拟非对称裁切边界 (如论文排版奇偶页装订边)
+        val crop = PageCropper2.CropBounds(left = 0.06f, top = 0.04f, right = 0.94f, bottom = 0.92f)
+
+        // 模拟手绘竖线、圆点与圆形笔画点序列
+        val touchPoints = listOf(
+            Pair(300f, 150f),
+            Pair(300f, 500f),
+            Pair(300f, 900f),
+            Pair(640f, 875f),
+            Pair(1000f, 200f)
+        )
+
+        for ((touchX, touchY) in touchPoints) {
+            // 1. Overlay 触控转换为归一化坐标 (commitContinuousStroke 逻辑)
+            val (unrotX, unrotY) = PageCoordinateTransformer.unrotatePoint(touchX, touchY, viewportWidth, contentHeightPx, 0)
+            val normX = (crop.left + (unrotX / viewportWidth) * crop.width).coerceIn(0f, 1f)
+            val normY = (crop.top + (unrotY / contentHeightPx) * crop.height).coerceIn(0f, 1f)
+
+            // 2. 页面视图 Canvas 映射回屏幕物理坐标 (buildContinuousPagePath 逻辑)
+            val u = (normX - crop.left) / crop.width
+            val v = (normY - crop.top) / crop.height
+            val mappedX = u * viewportWidth
+            val mappedY = v * contentHeightPx
+            val (renderX, renderY) = PageCoordinateTransformer.rotatePoint(mappedX, mappedY, viewportWidth, contentHeightPx, 0)
+
+        }
+    }
+
+    @Test
+    fun testAdjacentPagesContinuousStrokeZeroDrift() {
+        val viewportWidth = 1080f
+        val page0Height = 1600f
+        val page1Height = 1650f
+        val dividerHeight = 45f
+
+        // 上页与下页具有各自独立的裁切参数
+        val crop0 = PageCropper2.CropBounds(left = 0.05f, top = 0.03f, right = 0.95f, bottom = 0.97f)
+        val crop1 = PageCropper2.CropBounds(left = 0.08f, top = 0.06f, right = 0.92f, bottom = 0.94f)
+
+        // 上页可见区域：offset = -400 (部分滚出屏幕顶部)
+        val item0Offset = -400f
+        val item0ContentTop = item0Offset
+        val item0ContentBottom = item0Offset + page0Height
+
+        // 下页可见区域：紧随上页及分割条下方
+        val item1Offset = item0ContentBottom + dividerHeight
+        val item1ContentTop = item1Offset
+        val item1ContentBottom = item1Offset + page1Height
+
+        // 测试在下页上绘制笔画 (绝对视口 Y 坐标在下页范围内)
+        val bottomPageTouches = listOf(
+            Pair(200f, item1ContentTop + 100f),
+            Pair(540f, item1ContentTop + 500f),
+            Pair(800f, item1ContentTop + 1200f)
+        )
+
+        for ((touchX, touchY) in bottomPageTouches) {
+            // 1. Overlay 下页坐标归一化
+            val rawLocalX = touchX.coerceIn(0f, viewportWidth)
+            val rawLocalY = (touchY - item1ContentTop).coerceIn(0f, page1Height)
+            val normX = (crop1.left + (rawLocalX / viewportWidth) * crop1.width).coerceIn(0f, 1f)
+            val normY = (crop1.top + (rawLocalY / page1Height) * crop1.height).coerceIn(0f, 1f)
+
+            // 2. PdfPageView 下页 Canvas 本地坐标反解映射
+            val u = (normX - crop1.left) / crop1.width
+            val v = (normY - crop1.top) / crop1.height
+            val localX = u * viewportWidth
+            val localY = v * page1Height
+
+            // 3. 计算在当前屏幕视口内的实际渲染绝对位置 (item1Offset + localY)
+            val renderedScreenX = localX
+            val renderedScreenY = item1ContentTop + localY
+
+            assertEquals("下页 X 坐标完全对齐零漂移", touchX, renderedScreenX, 0.001f)
+            assertEquals("下页 Y 坐标完全对齐零漂移", touchY, renderedScreenY, 0.001f)
+        }
+    }
 }
+

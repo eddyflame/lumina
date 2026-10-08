@@ -90,7 +90,7 @@ sealed class PdfAnnotation {
         /**
          * 判定给定归一化触控点是否与该笔迹相交 (用于橡皮擦擦除判定)
          */
-        fun intersects(tapPoint: NormalizedPoint, threshold: Float = 0.05f): Boolean {
+        fun intersects(tapPoint: NormalizedPoint, threshold: Float = 0.06f): Boolean {
             // 先通过粗粒度包围盒快速排除
             if (tapPoint.x < boundingBox.left - threshold ||
                 tapPoint.x > boundingBox.right + threshold ||
@@ -100,14 +100,24 @@ sealed class PdfAnnotation {
                 return false
             }
 
-            // 细粒度线段距离碰撞检测
+            // 细粒度线段距离碰撞检测 (支持单点笔画与连续笔画)
             val thresholdSq = threshold * threshold
             for (stroke in strokes) {
-                for (i in 0 until stroke.size - 1) {
-                    val p1 = stroke[i]
-                    val p2 = stroke[i + 1]
-                    if (distanceSqToSegment(tapPoint, p1, p2) <= thresholdSq) {
+                if (stroke.isEmpty()) continue
+                if (stroke.size == 1) {
+                    val p = stroke[0]
+                    val dx = tapPoint.x - p.x
+                    val dy = tapPoint.y - p.y
+                    if (dx * dx + dy * dy <= thresholdSq) {
                         return true
+                    }
+                } else {
+                    for (i in 0 until stroke.size - 1) {
+                        val p1 = stroke[i]
+                        val p2 = stroke[i + 1]
+                        if (distanceSqToSegment(tapPoint, p1, p2) <= thresholdSq) {
+                            return true
+                        }
                     }
                 }
             }

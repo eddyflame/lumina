@@ -105,6 +105,7 @@
     <string name="action_finish_annotation">Done</string>
     <string name="clear_annotations_title">Clear Page Annotations</string>
     <string name="clear_annotations_message">Are you sure you want to clear all ink annotations on this page? You can restore them with the Undo button.</string>
+    <string name="eraser_mode_hint">Tap or drag across strokes to erase</string>
 
     <!-- Page Organizer Screen -->
     <string name="page_organizer_subtitle">%1$d pages in total · Tap any page to jump</string>
