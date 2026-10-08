@@ -34,7 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.lumina.reader.R
+import org.lumina.reader.core.annotation.AnnotationColorThemeAdapter
 import org.lumina.reader.core.annotation.AnnotationTool
+import org.lumina.reader.core.model.ReadingColorMode
 
 private val ANNOTATION_PALETTE = listOf(
     0xFF0066FF, // 品牌天蓝
@@ -61,6 +63,7 @@ fun AnnotationToolbar(
     activeTool: AnnotationTool,
     currentColor: Long,
     currentStrokeWidthDp: Float,
+    colorMode: ReadingColorMode = ReadingColorMode.NORMAL,
     canUndo: Boolean,
     canRedo: Boolean,
     onToolChange: (AnnotationTool) -> Unit,
@@ -124,6 +127,7 @@ fun AnnotationToolbar(
                         if (activeTool == AnnotationTool.PEN || activeTool == AnnotationTool.HIGHLIGHTER) {
                             ColorPaletteRow(
                                 currentColor = currentColor,
+                                colorMode = colorMode,
                                 onColorChange = onColorChange
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -196,6 +200,7 @@ fun AnnotationToolbar(
                         ) {
                             ColorPaletteRow(
                                 currentColor = currentColor,
+                                colorMode = colorMode,
                                 onColorChange = onColorChange
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -356,6 +361,7 @@ private fun ActionButtonsGroup(
 @Composable
 private fun ColorPaletteRow(
     currentColor: Long,
+    colorMode: ReadingColorMode,
     onColorChange: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -366,11 +372,13 @@ private fun ColorPaletteRow(
     ) {
         ANNOTATION_PALETTE.forEach { colorValue ->
             val isSelected = currentColor == colorValue
+            val displayColor = AnnotationColorThemeAdapter.resolveDisplayColor(colorValue, colorMode)
+            val isLightColor = (displayColor.red * 0.299f + displayColor.green * 0.587f + displayColor.blue * 0.114f) > 0.6f
             Box(
                 modifier = Modifier
                     .size(24.dp)
                     .clip(CircleShape)
-                    .background(Color(colorValue))
+                    .background(displayColor)
                     .border(
                         width = if (isSelected) 2.5.dp else 1.dp,
                         color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.6f),
@@ -383,7 +391,7 @@ private fun ColorPaletteRow(
                     Icon(
                         Icons.Default.Check,
                         contentDescription = null,
-                        tint = if (colorValue == 0xFFFFB300) Color.Black else Color.White,
+                        tint = if (isLightColor) Color.Black else Color.White,
                         modifier = Modifier.size(14.dp)
                     )
                 }

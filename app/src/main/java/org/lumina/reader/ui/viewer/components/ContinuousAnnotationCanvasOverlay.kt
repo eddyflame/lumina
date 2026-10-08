@@ -15,7 +15,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import org.lumina.reader.core.annotation.AnnotationColorThemeAdapter
 import org.lumina.reader.core.annotation.AnnotationTool
+import org.lumina.reader.core.model.ReadingColorMode
 import org.lumina.reader.core.annotation.NormalizedPoint
 import org.lumina.reader.core.annotation.PageCoordinateTransformer
 import org.lumina.reader.core.crop.PageCropper2
@@ -125,12 +127,18 @@ fun ContinuousAnnotationCanvasOverlay(
             .then(gestureModifier)
     ) {
         if (activeRawOffsets.isNotEmpty() && (activeTool == AnnotationTool.PEN || activeTool == AnnotationTool.HIGHLIGHTER)) {
+            val colorMode = uiState.colorMode
+            val baseColor = AnnotationColorThemeAdapter.resolveDisplayColor(annotationColor, colorMode)
             val liveColor = if (isHighlighter) {
-                Color(annotationColor).copy(alpha = 0.40f)
+                baseColor.copy(alpha = if (colorMode == ReadingColorMode.NORMAL) 0.40f else 0.55f)
             } else {
-                Color(annotationColor)
+                baseColor
             }
-            val liveBlendMode = if (isHighlighter) BlendMode.Multiply else BlendMode.SrcOver
+            val liveBlendMode = if (isHighlighter) {
+                AnnotationColorThemeAdapter.resolveHighlighterBlendMode(colorMode)
+            } else {
+                BlendMode.SrcOver
+            }
             val liveWidthPx = strokeWidthDp * density.density
             val livePath = buildOverlayBezierPath(activeRawOffsets)
 

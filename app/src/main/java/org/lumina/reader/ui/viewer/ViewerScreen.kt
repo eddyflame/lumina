@@ -511,6 +511,7 @@ fun ViewerScreen(
                 activeTool = uiState.annotationTool,
                 currentColor = uiState.annotationColor,
                 currentStrokeWidthDp = uiState.annotationStrokeWidthDp,
+                colorMode = uiState.colorMode,
                 canUndo = uiState.canUndoAnnotation,
                 canRedo = uiState.canRedoAnnotation,
                 onToolChange = { viewModel.setAnnotationTool(it) },
