@@ -223,6 +223,10 @@ class AndroidPdfRendererEngine(
         return cropBoundsCache[pageIndex]
     }
 
+    override fun getCachedPageInfo(pageIndex: Int): PageInfo? {
+        return pageInfoCache[pageIndex]
+    }
+
     override fun close() {
         isClosed = true
         renderLock.withLock {

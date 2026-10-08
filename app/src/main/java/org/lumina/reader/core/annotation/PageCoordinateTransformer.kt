@@ -130,4 +130,67 @@ object PageCoordinateTransformer {
             }
         }
     }
+
+    /**
+     * 将视口触控点按页面旋转角进行逆向旋转补偿，消除旋转图层下的手绘与擦除错位
+     */
+    fun unrotatePoint(
+        localX: Float,
+        localY: Float,
+        width: Float,
+        height: Float,
+        rotationDegrees: Int
+    ): Pair<Float, Float> {
+        val normRot = ((rotationDegrees % 360) + 360) % 360
+        if (normRot == 0) return Pair(localX, localY)
+
+        val cx = width / 2f
+        val cy = height / 2f
+        val dx = localX - cx
+        val dy = localY - cy
+
+        return when (normRot) {
+            90 -> Pair(cx + dy, cy - dx)
+            180 -> Pair(cx - dx, cy - dy)
+            270 -> Pair(cx - dy, cy + dx)
+            else -> {
+                val rad = Math.toRadians(-normRot.toDouble())
+                val cosA = Math.cos(rad).toFloat()
+                val sinA = Math.sin(rad).toFloat()
+                Pair(cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA)
+            }
+        }
+    }
+
+    /**
+     * 将未旋转坐标按页面旋转角正向旋转，映射回当前屏幕渲染视图空间
+     */
+    fun rotatePoint(
+        localX: Float,
+        localY: Float,
+        width: Float,
+        height: Float,
+        rotationDegrees: Int
+    ): Pair<Float, Float> {
+        val normRot = ((rotationDegrees % 360) + 360) % 360
+        if (normRot == 0) return Pair(localX, localY)
+
+        val cx = width / 2f
+        val cy = height / 2f
+        val dx = localX - cx
+        val dy = localY - cy
+
+        return when (normRot) {
+            90 -> Pair(cx - dy, cy + dx)
+            180 -> Pair(cx - dx, cy - dy)
+            270 -> Pair(cx + dy, cy - dx)
+            else -> {
+                val rad = Math.toRadians(normRot.toDouble())
+                val cosA = Math.cos(rad).toFloat()
+                val sinA = Math.sin(rad).toFloat()
+                Pair(cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA)
+            }
+        }
+    }
 }
+

@@ -105,6 +105,7 @@
     <string name="action_finish_annotation">完成注释</string>
     <string name="clear_annotations_title">清空本页注释</string>
     <string name="clear_annotations_message">确定要清除当前页的所有手绘笔迹吗？此操作可通过撤销按钮恢复。</string>
+    <string name="eraser_mode_hint">轻触或滑动笔迹以擦除</string>
 
     <!-- Page Organizer Screen -->
     <string name="page_organizer_subtitle">共 %1$d 页 · 点击任意页直接跳转</string>

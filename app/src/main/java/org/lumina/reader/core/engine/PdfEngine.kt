@@ -61,6 +61,11 @@ interface PdfEngine {
     fun getCachedCropBounds(pageIndex: Int): PageCropper2.CropBounds? = null
 
     /**
+     * 获取内存中已缓存的页面几何信息 (同步即时获取，无挂起开销)
+     */
+    fun getCachedPageInfo(pageIndex: Int): PageInfo? = null
+
+    /**
      * 关闭并释放底层资源
      */
     fun close()
