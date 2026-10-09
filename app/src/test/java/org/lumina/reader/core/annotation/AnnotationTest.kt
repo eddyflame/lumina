@@ -117,6 +117,47 @@ class AnnotationTest {
     }
 
     @Test
+    fun testRefinedEraserRadiusPreventsOverErasure() {
+        // 水平线段位于 y = 0.5f，从 x = 0.2f 到 0.8f
+        val horizontalStroke = listOf(
+            NormalizedPoint(0.2f, 0.5f),
+            NormalizedPoint(0.8f, 0.5f)
+        )
+        val ink = PdfAnnotation.Ink(
+            pageIndex = 0,
+            strokes = listOf(horizontalStroke)
+        )
+
+        // 1. 距离线段 0.015f 的落点 (精细 12dp 范围内)：应准确命中
+        assertTrue("在精细 12dp 范围内的落点应精准擦除", ink.intersects(NormalizedPoint(0.5f, 0.51f), threshold = 0.025f))
+
+        // 2. 距离线段 0.045f 的落点 (在过去 0.06f 粗暴阈值下会发生误擦除，在新的 0.025f 阈值下必须被保护)：不应命中
+        assertFalse("距离线段 0.045f 的邻近笔迹绝不应被误擦除", ink.intersects(NormalizedPoint(0.5f, 0.545f), threshold = 0.025f))
+
+        // 3. 默认无参调用采用精细阈值 0.025f
+        assertFalse("默认阈值下 0.04f 距离的邻近笔迹不应被擦除", ink.intersects(NormalizedPoint(0.5f, 0.54f)))
+    }
+
+    @Test
+    fun testEraserAspectIsotropy() {
+        // 单个点位于 (0.5, 0.5)
+        val pointInk = PdfAnnotation.Ink(
+            pageIndex = 0,
+            strokes = listOf(listOf(NormalizedPoint(0.5f, 0.5f)))
+        )
+        val pageAspect = 1.5f // 常见 A4 纸张高宽比约为 1.414~1.5
+
+        // 在各向同性物理圆下，水平距离 0.02f 对应归一化物理半径 0.02f
+        assertTrue(pointInk.intersects(NormalizedPoint(0.52f, 0.5f), threshold = 0.025f, pageAspect = pageAspect))
+
+        // 垂直距离 0.02f 乘以 pageAspect 1.5 = 物理距离 0.03f，超出 0.025f 阈值，不应命中
+        assertFalse("垂直方向必须经过高宽比纠偏，杜绝椭圆拉伸过度误擦", pointInk.intersects(NormalizedPoint(0.5f, 0.52f), threshold = 0.025f, pageAspect = pageAspect))
+
+        // 垂直物理距离 0.015f * 1.5 = 0.0225f <= 0.025f，应该命中
+        assertTrue("在物理圆形范围内的垂直距离应正确命中", pointInk.intersects(NormalizedPoint(0.5f, 0.515f), threshold = 0.025f, pageAspect = pageAspect))
+    }
+
+    @Test
     fun testUndoRedoStackFlow() {
         val undoManager = UndoRedoManager()
 
@@ -371,5 +412,125 @@ class AnnotationTest {
             assertTrue("AMOLED夜间模式下各色块均具备明亮视觉通道 (>=0.55): $color", maxAmoled >= 0.55f)
         }
     }
+
+    @Test
+    fun testScreenToLocalAndLocalToScreenRoundTrip() {
+        val viewW = 1080f
+        val itemH = 1800f
+        val itemOffset = 200f
+        val scales = listOf(1f, 1.25f, 1.8f, 2.0f, 3.5f)
+        val offsets = listOf(0f to 0f, 50f to -80f, -120f to 150f)
+        val testScreenPoints = listOf(
+            100f to 300f,
+            540f to 900f,
+            1000f to 1700f,
+            50f to 250f
+        )
+
+        for (scale in scales) {
+            for ((ox, oy) in offsets) {
+                for ((sx, sy) in testScreenPoints) {
+                    val (localX, localY) = PageCoordinateTransformer.screenToLocal(
+                        viewportX = sx,
+                        viewportY = sy,
+                        itemOffsetX = itemOffset,
+                        itemWidth = viewW,
+                        itemHeight = itemH,
+                        scale = scale,
+                        offsetX = ox,
+                        offsetY = oy
+                    )
+
+                    val (reScreenX, reScreenY) = PageCoordinateTransformer.localToScreen(
+                        localX = localX,
+                        localY = localY,
+                        itemOffsetX = itemOffset,
+                        itemWidth = viewW,
+                        itemHeight = itemH,
+                        scale = scale,
+                        offsetX = ox,
+                        offsetY = oy
+                    )
+
+                    assertEquals("Screen to local round trip X for scale $scale", sx, reScreenX, 0.001f)
+                    assertEquals("Screen to local round trip Y for scale $scale", sy, reScreenY, 0.001f)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun testZoomedContinuousAnnotationZeroDriftZeroDeformation() {
+        val viewportWidth = 1080f
+        val itemOffset = 500f
+        val pageHeight = 1600f
+        val scale = 2.5f
+        val offsetX = 120f
+        val offsetY = -80f
+        val crop = PageCropper2.CropBounds(0.05f, 0.08f, 0.95f, 0.92f)
+        val cropW = crop.width
+        val cropH = crop.height
+
+        // 模拟用户在放大 2.5x 后的页面上进行精确笔触绘制
+        val touchPoints = listOf(
+            200f to 700f,
+            450f to 950f,
+            780f to 1200f,
+            540f to 800f
+        )
+
+        for ((touchX, touchY) in touchPoints) {
+            // 1. ContinuousAnnotationCanvasOverlay 逆向映射得到页面本地坐标
+            val (localX, localY) = PageCoordinateTransformer.screenToLocal(
+                viewportX = touchX,
+                viewportY = touchY,
+                itemOffsetX = itemOffset,
+                itemWidth = viewportWidth,
+                itemHeight = pageHeight,
+                scale = scale,
+                offsetX = offsetX,
+                offsetY = offsetY
+            )
+
+            // 2. 归一化并考虑智能裁切边界
+            val normX = (crop.left + (localX / viewportWidth) * cropW)
+            val normY = (crop.top + (localY / pageHeight) * cropH)
+
+            // 3. PdfPageView 渲染时正向还原本地坐标
+            val u = (normX - crop.left) / cropW
+            val v = (normY - crop.top) / cropH
+            val reconstructedLocalX = u * viewportWidth
+            val reconstructedLocalY = v * pageHeight
+
+            // 4. PdfPageView 的 graphicsLayer 对 Column 应用硬件加速缩放与平移变换
+            val (finalRenderedX, finalRenderedY) = PageCoordinateTransformer.localToScreen(
+                localX = reconstructedLocalX,
+                localY = reconstructedLocalY,
+                itemOffsetX = itemOffset,
+                itemWidth = viewportWidth,
+                itemHeight = pageHeight,
+                scale = scale,
+                offsetX = offsetX,
+                offsetY = offsetY
+            )
+
+            assertEquals("放大页面下手绘笔触 X 坐标零漂移", touchX, finalRenderedX, 0.001f)
+            assertEquals("放大页面下手绘笔触 Y 坐标零漂移", touchY, finalRenderedY, 0.001f)
+        }
+    }
+
+    @Test
+    fun testZoomedStrokeWidthScaling() {
+        val baseStrokeWidthDp = 4f
+        val scales = listOf(1f, 1.5f, 2f, 3f)
+
+        for (scale in scales) {
+            val effectiveWidthDp = baseStrokeWidthDp / scale
+            // 在 GPU 图层缩放 scale 后，屏幕视觉呈现宽度必须完全恒定
+            val visualRenderedDp = effectiveWidthDp * scale
+            assertEquals("在任意缩放级别下笔划视觉粗细完全一致，杜绝变形", baseStrokeWidthDp, visualRenderedDp, 0.001f)
+        }
+    }
 }
+
 

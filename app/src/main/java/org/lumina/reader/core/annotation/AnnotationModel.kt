@@ -88,26 +88,33 @@ sealed class PdfAnnotation {
         }
 
         /**
-         * 判定给定归一化触控点是否与该笔迹相交 (用于橡皮擦擦除判定)
+         * 判定给定归一化触控点是否与该笔迹相交 (用于橡皮擦精准擦除判定)
+         *
+         * @param tapPoint 触控点归一化坐标 (0..1)
+         * @param threshold 判定半径 (归一化宽度基准，默认 0.025f 对应约 12dp 精细橡皮擦)
+         * @param pageAspect 页面高宽比 (height / width)，用于保证各向同性物理圆形碰撞判定
          */
-        fun intersects(tapPoint: NormalizedPoint, threshold: Float = 0.06f): Boolean {
-            // 先通过粗粒度包围盒快速排除
+        fun intersects(tapPoint: NormalizedPoint, threshold: Float = 0.025f, pageAspect: Float = 1.4f): Boolean {
+            val aspect = pageAspect.coerceIn(0.2f, 5.0f)
+            val thresholdSq = threshold * threshold
+
+            // 先通过粗粒度包围盒快速排除 (按高宽比补偿垂直范围)
+            val thresholdY = threshold / aspect
             if (tapPoint.x < boundingBox.left - threshold ||
                 tapPoint.x > boundingBox.right + threshold ||
-                tapPoint.y < boundingBox.top - threshold ||
-                tapPoint.y > boundingBox.bottom + threshold
+                tapPoint.y < boundingBox.top - thresholdY ||
+                tapPoint.y > boundingBox.bottom + thresholdY
             ) {
                 return false
             }
 
-            // 细粒度线段距离碰撞检测 (支持单点笔画与连续笔画)
-            val thresholdSq = threshold * threshold
+            // 细粒度线段距离碰撞检测 (使用各向同性真实物理几何距离)
             for (stroke in strokes) {
                 if (stroke.isEmpty()) continue
                 if (stroke.size == 1) {
                     val p = stroke[0]
                     val dx = tapPoint.x - p.x
-                    val dy = tapPoint.y - p.y
+                    val dy = (tapPoint.y - p.y) * aspect
                     if (dx * dx + dy * dy <= thresholdSq) {
                         return true
                     }
@@ -115,7 +122,7 @@ sealed class PdfAnnotation {
                     for (i in 0 until stroke.size - 1) {
                         val p1 = stroke[i]
                         val p2 = stroke[i + 1]
-                        if (distanceSqToSegment(tapPoint, p1, p2) <= thresholdSq) {
+                        if (distanceSqToSegment(tapPoint, p1, p2, aspect) <= thresholdSq) {
                             return true
                         }
                     }
@@ -124,21 +131,18 @@ sealed class PdfAnnotation {
             return false
         }
 
-        private fun distanceSqToSegment(p: NormalizedPoint, p1: NormalizedPoint, p2: NormalizedPoint): Float {
+        private fun distanceSqToSegment(p: NormalizedPoint, p1: NormalizedPoint, p2: NormalizedPoint, aspect: Float): Float {
             val dx = p2.x - p1.x
-            val dy = p2.y - p1.y
+            val dy = (p2.y - p1.y) * aspect
             val lengthSq = dx * dx + dy * dy
-            if (lengthSq == 0f) {
-                val ex = p.x - p1.x
-                val ey = p.y - p1.y
-                return ex * ex + ey * ey
+            val px = p.x - p1.x
+            val py = (p.y - p1.y) * aspect
+            if (lengthSq <= 1e-8f) {
+                return px * px + py * py
             }
-            val t = ((p.x - p1.x) * dx + (p.y - p1.y) * dy) / lengthSq
-            val clampedT = t.coerceIn(0f, 1f)
-            val projX = p1.x + clampedT * dx
-            val projY = p1.y + clampedT * dy
-            val distDx = p.x - projX
-            val distDy = p.y - projY
+            val t = ((px * dx + py * dy) / lengthSq).coerceIn(0f, 1f)
+            val distDx = px - t * dx
+            val distDy = py - t * dy
             return distDx * distDx + distDy * distDy
         }
     }

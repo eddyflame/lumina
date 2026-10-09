@@ -3,6 +3,8 @@ package org.lumina.reader.ui.viewer
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.lumina.reader.R
@@ -39,6 +41,12 @@ import org.lumina.reader.core.annotation.NormalizedPoint
 import org.lumina.reader.core.annotation.PdfAnnotation
 import org.lumina.reader.core.annotation.UndoRedoManager
 
+data class PageZoomState(
+    val scale: Float = 1f,
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f
+)
+
 data class ViewerUiState(
     val isLoading: Boolean = false,
     val documentInfo: PdfDocumentInfo? = null,
@@ -74,6 +82,33 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var saveProgressJob: Job? = null
     private var prefetchJob: Job? = null
+
+    // 页面级独立缩放手势状态 (按 pageIndex 记忆与驱动硬件加速图层)
+    private val _pageZoomStates = mutableMapOf<Int, MutableState<PageZoomState>>()
+
+    fun getPageZoomState(pageIndex: Int): MutableState<PageZoomState> {
+        return _pageZoomStates.getOrPut(pageIndex) {
+            mutableStateOf(PageZoomState())
+        }
+    }
+
+    fun getPageZoom(pageIndex: Int): PageZoomState {
+        return _pageZoomStates[pageIndex]?.value ?: PageZoomState()
+    }
+
+    fun setPageZoom(pageIndex: Int, scale: Float, offsetX: Float, offsetY: Float) {
+        val state = getPageZoomState(pageIndex)
+        if (scale <= 1.05f) {
+            state.value = PageZoomState(1f, 0f, 0f)
+        } else {
+            state.value = PageZoomState(scale, offsetX, offsetY)
+        }
+    }
+
+    fun resetAllPageZooms() {
+        _pageZoomStates.values.forEach { it.value = PageZoomState() }
+        _pageZoomStates.clear()
+    }
 
     private val _uiState = MutableStateFlow(ViewerUiState())
     val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
@@ -128,6 +163,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openDocument(uri: Uri) {
         viewModelScope.launch {
+            resetAllPageZooms()
             undoRedoManager.clear()
             _uiState.update {
                 it.copy(
@@ -200,10 +236,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setLayoutMode(mode: ReadingLayoutMode) {
+        resetAllPageZooms()
         _uiState.update { it.copy(layoutMode = mode) }
     }
 
     fun toggleLayoutMode() {
+        resetAllPageZooms()
         _uiState.update {
             val next = if (it.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
                 ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL
@@ -243,6 +281,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     /** 退出阅读器时一次性重置全屏与横屏状态，并立即持久化阅读进度 */
     fun resetViewerModes() {
+        resetAllPageZooms()
         flushProgressSave()
         _uiState.update {
             it.copy(isFullscreen = false, isLandscape = false, isOverlayVisible = true)
@@ -377,10 +416,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             val validStrokes = strokes.filter { it.isNotEmpty() }
             if (validStrokes.isEmpty()) null
             else {
+                val pageScale = getPageZoom(pageIndex).scale.coerceAtLeast(0.1f)
+                val effectiveWidthDp = _uiState.value.annotationStrokeWidthDp / pageScale
                 val ink = PdfAnnotation.Ink(
                     pageIndex = pageIndex,
                     color = _uiState.value.annotationColor,
-                    strokeWidthDp = _uiState.value.annotationStrokeWidthDp,
+                    strokeWidthDp = effectiveWidthDp,
                     isHighlighter = isHighlighter,
                     strokes = validStrokes
                 )
@@ -394,9 +435,18 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun eraseAnnotationAt(pageIndex: Int, point: NormalizedPoint) {
+    fun eraseAnnotationAt(
+        pageIndex: Int,
+        point: NormalizedPoint,
+        threshold: Float? = null,
+        pageAspect: Float = 1.4f
+    ) {
         val list = _uiState.value.annotations[pageIndex] ?: return
-        val target = list.filterIsInstance<PdfAnnotation.Ink>().lastOrNull { it.intersects(point) }
+        val pageScale = getPageZoom(pageIndex).scale.coerceAtLeast(1f)
+        val effThreshold = threshold ?: (0.025f / pageScale).coerceAtLeast(0.005f)
+        val target = list.filterIsInstance<PdfAnnotation.Ink>().lastOrNull {
+            it.intersects(point, threshold = effThreshold, pageAspect = pageAspect)
+        }
         if (target != null) {
             undoRedoManager.execute(DeleteAnnotationCommand(annotationStore, target))
         }

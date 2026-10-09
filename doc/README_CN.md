@@ -1,18 +1,16 @@
 # Lumina Reader (LuminaPDF) - 项目说明
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Platform-Android_16+_(Baklava)-0284C7?style=for-the-badge&logo=android&logoColor=white" alt="Android 16 Ready" />
+  <img src="https://img.shields.io/badge/Platform-Android-0284C7?style=for-the-badge&logo=android&logoColor=white" alt="Android" />
   <img src="https://img.shields.io/badge/Kotlin-2.2.20-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin 2.2" />
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material_3-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Material 3" />
-  <img src="https://img.shields.io/badge/16KB_Page_Size-Immune-success?style=for-the-badge" alt="16KB Page Size Immune" />
   <img src="https://img.shields.io/badge/Permissions-Zero_SAF-emerald?style=for-the-badge" alt="Zero Permissions" />
   <img src="https://img.shields.io/badge/License-GPL_v3.0-blue?style=for-the-badge" alt="License GPLv3" />
 </p>
 
 <p align="center">
-  <b>面向 Android 16+ 的下一代极简高性能 PDF 阅读器</b><br/>
-  <i>Next-Gen Minimalist High-Performance Android PDF Reader · Built for Android 16+</i><br/>
-  <b>飞速渲染 · 智能白边裁切 2.0 · 双模暗黑护眼 · 交互批注与标准回存 · 物理页面重构 · 零权限 SAF · 16KB Page Size 原生兼容</b>
+  <b>极简、轻快、专注的 Android PDF 阅读器</b><br/>
+  <i>秒开即读 · 丝滑流畅 · 智能切白边 · 护眼深色 · 随心批注 · 零多余权限</i>
 </p>
 
 <p align="center">
@@ -21,38 +19,29 @@
 
 ---
 
-## 🌟 核心亮点 (Key Highlights)
+## 🌟 核心特性 (Key Features)
 
-### ⚡ 原生 16KB Page Size 架构与纯 JVM 零 JNI 风险
-- **原生内存分页兼容**：采用 Android 原生内置 `android.graphics.pdf.PdfRenderer` 与纯 JVM Apache PDFBox Android (2.0.27.0)，全项目**无任何第三方 C/C++ 动态链接库 (`.so`)**；
-- **杜绝段对齐崩溃**：彻底免疫 Android 15/16 常见的 16KB Page Size ELF 段对齐崩溃（`dlopen failed: 16KB segment alignment`）；
-- **极致轻量秒开**：APK 安装包压缩至 **5MB 以内**，冷启动瞬时秒开，内存占用克制，集成 `BitmapLruCache`（25% 堆内存动态上限）实现快速滚动防爆。
+### ⚡ 飞速渲染 · 极简轻快
+- **秒开即读**：基于 Android 原生硬件加速渲染引擎，大文件瞬时加载，连续滚动丝滑跟手；
+- **低内存占用**：智能位图复用与缓存机制，百页长文档快速翻页杜绝 OOM；
+- **纯粹无打扰**：无冗余常驻后台、无广告推送，专注于 PDF 阅读本身。
 
-### ✂️ 智能白边裁切 2.0 & 双栏论文单栏聚焦
-- **微秒级算法**：传承并升级 EBookDroid 经典四向亮度差分探测算法，纯 Kotlin 位运算高性能重构，子图探测耗时 **< 1.5ms**；
-- **消除边缘留白**：自动识别切除扫描件、书籍与文献四周空白边缘，使正文有效显示面积扩大 **25% ~ 35%**；
-- **双栏论文一键聚焦**：阅读 IEEE / ACM 等双栏学术论文时，轻触正文即可自动扫描中缝空白并全屏居中放大单栏，告别繁琐手动拖移。
+### ✂️ 智能白边裁切 · 双栏聚焦
+- **自动切白边**：自动识别并裁除文献与扫描件的页面多余留白，最大化屏幕文字有效面积；
+- **双栏论文一键聚焦**：双击或轻触双栏学术论文正文，自动识别中缝并居中单栏放大。
 
-### 🌓 全景双模暗黑主题与护眼色彩矩阵
-- **同源双深色质感**：
-  - **板岩深灰 (Slate Charcoal)**：采用 `#0F172A` / `#1E293B` 色阶，层次细腻，夜间阅读温和不刺眼；
-  - **极致纯黑 (AMOLED Pure Black)**：采用 `#000000` 纯黑，实现 OLED 屏幕像素熄灭与零功耗；
-- **WCAG AAA 7.8:1 护眼映射**：摒弃传统模糊发黄的羊皮纸模式，采用线性 `ColorMatrix` 精确将白底黑字压缩映射至黄金阅读舒适区间；
-- **全链路 Edge-to-Edge**：系统状态栏与手势导航栏完全透明，图标明暗自动毫秒级适配，冷启动内置 `values-night` 杜绝白屏闪烁。
+### 🌓 护眼色调 · 双模深色
+- **双深色主题**：提供板岩深灰（夜间柔和）与 AMOLED 纯黑（OLED 像素省电）两种主题；
+- **智能色彩映射**：线性色彩矩阵精准调和底色与文字对比度，长时间阅读温和不伤眼。
 
-### ✏️ 交互式手绘批注与 Undo/Redo 命令栈
-- **丰富工具矩阵**：提供钢笔墨水、荧光笔半透明叠加高亮（BlendMode 正片叠底）以及笔画级物理橡皮擦；
-- **完整命令模式**：支持多级撤销（Undo）、重做（Redo）与单页清空操作历史栈；
-- **双向高精度投影**：通过 `PageCoordinateTransformer` 实现屏幕视口物理像素与 PDF 72 DPI 标准点阵空间无损映射。
+### ✏️ 丝滑手绘 · 标准批注回存
+- **无感手写**：钢笔与荧光笔高精度贴合触控，在页面缩放下依然零跳变、零漂移、粗细自适应；
+- **标准格式回存**：批注完全符合 ISO 32000-1 规范，保存后可在 Adobe Acrobat、浏览器等任意第三方阅读器完整查看；
+- **页面轻松整理**：支持页面快速旋转与顺序调整。
 
-### 📑 ISO 32000-1 标准批注回存与物理页面编辑重构
-- **标准互通回存**：基于纯 JVM 引擎将笔迹与荧光笔写入 ISO 32000-1 标准 `/Annots` 字典（`/Subtype /Ink`），并自动构建 `/AP` (`PDAppearanceStream`) 外观流，确保导出文档在 Adobe Acrobat、Chrome、Edge 等所有第三方阅读器中完美呈现；
-- **物理页面管理**：支持页面顺时针/逆时针 90° 物理旋转（`/Rotate`）、多选删除与顺序重排重构；
-- **原子事务覆盖**：采用应用私有临时文件与流式管道进行安全校验覆盖，杜绝意外中断导致原始文件损坏。
-
-### 🛡️ 纯零权限 Scoped Storage 设计
-- **无任何危险存储权限**：无需申请 `MANAGE_EXTERNAL_STORAGE` 或全盘读写权限；
-- **SAF 原生生态联动**：无缝对接系统文件选择器、下载管理器、微信聊天文件与邮件附件直接调用。
+### 🛡️ 零多余权限 · 尊重隐私
+- **无需存储权限**：遵循 Android 存储访问框架 (SAF)，不申请读写或管理外部存储等敏感权限；
+- **即开即看**：无缝调用微信、邮件、网盘与系统文件管理器中的文档。
 
 ---
 

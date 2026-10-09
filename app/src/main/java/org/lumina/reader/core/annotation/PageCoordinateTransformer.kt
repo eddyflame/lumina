@@ -192,5 +192,62 @@ object PageCoordinateTransformer {
             }
         }
     }
+
+    /**
+     * 将视口屏幕坐标点映射为页面未缩放的本地坐标 (逆向仿射变换)
+     *
+     * @param viewportX 视口绝对 X
+     * @param viewportY 视口绝对 Y
+     * @param itemOffsetX LazyColumn 中该 Item 的布局 offset.y
+     * @param itemWidth Item 布局宽度 (通常为 viewportWidth)
+     * @param itemHeight Item 布局高度 (含 divider)
+     * @param scale 页面当前缩放比例
+     * @param offsetX 页面当前 X 轴平移
+     * @param offsetY 页面当前 Y 轴平移
+     * @return 页面本地坐标 (localX, localY)，其中 localY 的有效页面范围为 0..contentHeight
+     */
+    fun screenToLocal(
+        viewportX: Float,
+        viewportY: Float,
+        itemOffsetX: Float,
+        itemWidth: Float,
+        itemHeight: Float,
+        scale: Float,
+        offsetX: Float,
+        offsetY: Float
+    ): Pair<Float, Float> {
+        val s = scale.coerceAtLeast(0.01f)
+        val pivotX = itemWidth / 2f
+        val pivotY = itemHeight / 2f
+        val centerViewportX = itemWidth / 2f
+        val centerViewportY = itemOffsetX + pivotY
+
+        val localX = pivotX + (viewportX - centerViewportX - offsetX) / s
+        val localY = pivotY + (viewportY - centerViewportY - offsetY) / s
+        return Pair(localX, localY)
+    }
+
+    /**
+     * 将页面本地坐标映射回视口屏幕坐标 (正向仿射变换)
+     */
+    fun localToScreen(
+        localX: Float,
+        localY: Float,
+        itemOffsetX: Float,
+        itemWidth: Float,
+        itemHeight: Float,
+        scale: Float,
+        offsetX: Float,
+        offsetY: Float
+    ): Pair<Float, Float> {
+        val pivotX = itemWidth / 2f
+        val pivotY = itemHeight / 2f
+        val centerViewportX = itemWidth / 2f
+        val centerViewportY = itemOffsetX + pivotY
+
+        val screenX = centerViewportX + (localX - pivotX) * scale + offsetX
+        val screenY = centerViewportY + (localY - pivotY) * scale + offsetY
+        return Pair(screenX, screenY)
+    }
 }
 
