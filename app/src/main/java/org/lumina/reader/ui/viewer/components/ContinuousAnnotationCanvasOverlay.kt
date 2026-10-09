@@ -3,6 +3,9 @@ package org.lumina.reader.ui.viewer.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
@@ -49,6 +52,7 @@ fun ContinuousAnnotationCanvasOverlay(
     val strokeWidthDp = uiState.annotationStrokeWidthDp
     val isHighlighter = activeTool == AnnotationTool.HIGHLIGHTER
     val dividerHeightPx = with(density) { 18.dp.toPx() }
+    val eraserRadiusPx = with(density) { 12.dp.toPx() }
 
     var activeRawOffsets by remember(orientation) { mutableStateOf<List<Offset>>(emptyList()) }
     var eraserPosition by remember(orientation) { mutableStateOf<Offset?>(null) }
@@ -58,20 +62,61 @@ fun ContinuousAnnotationCanvasOverlay(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 down.consume()
+                var isMultiTouch = false
                 activeRawOffsets = listOf(down.position)
 
                 while (true) {
                     val event = awaitPointerEvent()
-                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    if (change.pressed) {
-                        change.consume()
-                        activeRawOffsets = activeRawOffsets + change.position
+                    if (event.changes.size >= 2) {
+                        isMultiTouch = true
+                        activeRawOffsets = emptyList() // 丢弃多指手势产生的单笔画误触
+
+                        val zoomChange = event.calculateZoom()
+                        val panChange = event.calculatePan()
+                        val centroid = event.calculateCentroid(useCurrent = false)
+
+                        val visibleItems = listState.layoutInfo.visibleItemsInfo
+                        val item = visibleItems.firstOrNull {
+                            centroid.y >= it.offset && centroid.y < it.offset + it.size
+                        } ?: visibleItems.firstOrNull()
+
+                        if (item != null) {
+                            val spec = effectiveSpecs.getOrElse(item.index) { PageEditSpec(item.index, 0) }
+                            val pageIndex = spec.originalPageIndex
+                            val currentZoom = viewModel.getPageZoom(pageIndex)
+                            val newScale = (currentZoom.scale * zoomChange).coerceIn(1f, 4f)
+                            val vpWidth = listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(1f)
+                            val itemH = item.size.toFloat()
+                            val maxOffsetX = (vpWidth * (newScale - 1f)) / 2f
+                            val maxOffsetY = (itemH * (newScale - 1f)) / 2f
+
+                            val newOffsetX = if (newScale > 1f) {
+                                (currentZoom.offsetX + panChange.x).coerceIn(-maxOffsetX, maxOffsetX)
+                            } else 0f
+                            val newOffsetY = if (newScale > 1f) {
+                                (currentZoom.offsetY + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                            } else 0f
+
+                            viewModel.setPageZoom(pageIndex, newScale, newOffsetX, newOffsetY)
+                        }
+                        event.changes.forEach { it.consume() }
                     } else {
-                        break
+                        if (isMultiTouch) {
+                            event.changes.forEach { it.consume() }
+                            if (event.changes.none { it.pressed }) break
+                        } else {
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (change.pressed) {
+                                change.consume()
+                                activeRawOffsets = activeRawOffsets + change.position
+                            } else {
+                                break
+                            }
+                        }
                     }
                 }
 
-                if (activeRawOffsets.isNotEmpty()) {
+                if (!isMultiTouch && activeRawOffsets.isNotEmpty()) {
                     commitContinuousStroke(
                         rawOffsets = activeRawOffsets,
                         listState = listState,
@@ -88,6 +133,7 @@ fun ContinuousAnnotationCanvasOverlay(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 down.consume()
+                var isMultiTouch = false
                 eraserPosition = down.position
                 eraseAtViewportOffset(
                     offset = down.position,
@@ -95,25 +141,67 @@ fun ContinuousAnnotationCanvasOverlay(
                     effectiveSpecs = effectiveSpecs,
                     uiState = uiState,
                     viewModel = viewModel,
-                    dividerHeightPx = dividerHeightPx
+                    dividerHeightPx = dividerHeightPx,
+                    eraserRadiusPx = eraserRadiusPx
                 )
 
                 while (true) {
                     val event = awaitPointerEvent()
-                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    if (change.pressed) {
-                        change.consume()
-                        eraserPosition = change.position
-                        eraseAtViewportOffset(
-                            offset = change.position,
-                            listState = listState,
-                            effectiveSpecs = effectiveSpecs,
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            dividerHeightPx = dividerHeightPx
-                        )
+                    if (event.changes.size >= 2) {
+                        isMultiTouch = true
+                        eraserPosition = null
+
+                        val zoomChange = event.calculateZoom()
+                        val panChange = event.calculatePan()
+                        val centroid = event.calculateCentroid(useCurrent = false)
+
+                        val visibleItems = listState.layoutInfo.visibleItemsInfo
+                        val item = visibleItems.firstOrNull {
+                            centroid.y >= it.offset && centroid.y < it.offset + it.size
+                        } ?: visibleItems.firstOrNull()
+
+                        if (item != null) {
+                            val spec = effectiveSpecs.getOrElse(item.index) { PageEditSpec(item.index, 0) }
+                            val pageIndex = spec.originalPageIndex
+                            val currentZoom = viewModel.getPageZoom(pageIndex)
+                            val newScale = (currentZoom.scale * zoomChange).coerceIn(1f, 4f)
+                            val vpWidth = listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(1f)
+                            val itemH = item.size.toFloat()
+                            val maxOffsetX = (vpWidth * (newScale - 1f)) / 2f
+                            val maxOffsetY = (itemH * (newScale - 1f)) / 2f
+
+                            val newOffsetX = if (newScale > 1f) {
+                                (currentZoom.offsetX + panChange.x).coerceIn(-maxOffsetX, maxOffsetX)
+                            } else 0f
+                            val newOffsetY = if (newScale > 1f) {
+                                (currentZoom.offsetY + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                            } else 0f
+
+                            viewModel.setPageZoom(pageIndex, newScale, newOffsetX, newOffsetY)
+                        }
+                        event.changes.forEach { it.consume() }
                     } else {
-                        break
+                        if (isMultiTouch) {
+                            event.changes.forEach { it.consume() }
+                            if (event.changes.none { it.pressed }) break
+                        } else {
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (change.pressed) {
+                                change.consume()
+                                eraserPosition = change.position
+                                eraseAtViewportOffset(
+                                    offset = change.position,
+                                    listState = listState,
+                                    effectiveSpecs = effectiveSpecs,
+                                    uiState = uiState,
+                                    viewModel = viewModel,
+                                    dividerHeightPx = dividerHeightPx,
+                                    eraserRadiusPx = eraserRadiusPx
+                                )
+                            } else {
+                                break
+                            }
+                        }
                     }
                 }
                 eraserPosition = null
@@ -154,10 +242,10 @@ fun ContinuousAnnotationCanvasOverlay(
             )
         }
 
-        // 橡皮擦实时触控反馈光圈
+        // 橡皮擦实时触控反馈光圈 (精细高对比度光圈，12.dp 半径防遮挡)
         if (activeTool == AnnotationTool.ERASER) {
             eraserPosition?.let { pos ->
-                val radiusPx = 22.dp.toPx()
+                val radiusPx = 12.dp.toPx()
                 // 半透明感应区
                 drawCircle(
                     color = Color(0x33FF5252),
@@ -166,15 +254,15 @@ fun ContinuousAnnotationCanvasOverlay(
                 )
                 // 边框描边
                 drawCircle(
-                    color = Color(0xCCFF5252),
+                    color = Color(0xEEFF5252),
                     radius = radiusPx,
                     center = pos,
-                    style = Stroke(width = 2.dp.toPx())
+                    style = Stroke(width = 1.5.dp.toPx())
                 )
                 // 精准中心触点
                 drawCircle(
                     color = Color(0xFFFF1744),
-                    radius = 3.dp.toPx(),
+                    radius = 2.dp.toPx(),
                     center = pos
                 )
             }
@@ -201,7 +289,14 @@ private fun commitContinuousStroke(
     val viewportWidth = listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(1f)
     val pageStrokesMap = mutableMapOf<Int, MutableList<List<NormalizedPoint>>>()
 
-    for (item in visibleItems) {
+    // 优先处理处于缩放状态的置顶页面
+    val sortedItems = visibleItems.sortedByDescending { item ->
+        val spec = effectiveSpecs.getOrElse(item.index) { PageEditSpec(item.index, 0) }
+        val zoom = viewModel.getPageZoom(spec.originalPageIndex)
+        if (zoom.scale > 1.05f) 1 else 0
+    }
+
+    for (item in sortedItems) {
         val virtualIndex = item.index
         val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
         val originalPageIndex = spec.originalPageIndex
@@ -209,8 +304,31 @@ private fun commitContinuousStroke(
         val hasDivider = virtualIndex < effectiveSpecs.size - 1
         val itemDividerPx = if (hasDivider) dividerHeightPx else 0f
         val contentTop = item.offset.toFloat()
-        val contentBottom = item.offset.toFloat() + item.size.toFloat() - itemDividerPx
-        val contentHeightPx = (contentBottom - contentTop).coerceAtLeast(1f)
+        val contentHeightPx = (item.size.toFloat() - itemDividerPx).coerceAtLeast(1f)
+
+        val zoom = viewModel.getPageZoom(originalPageIndex)
+        val scale = zoom.scale.coerceAtLeast(0.1f)
+        val offsetX = zoom.offsetX
+        val offsetY = zoom.offsetY
+
+        // 将视口绝对触控点全量逆向变换至当前页面未缩放的本地坐标系
+        val localPoints = rawOffsets.map { pt ->
+            val (lx, ly) = PageCoordinateTransformer.screenToLocal(
+                viewportX = pt.x,
+                viewportY = pt.y,
+                itemOffsetX = contentTop,
+                itemWidth = viewportWidth,
+                itemHeight = item.size.toFloat(),
+                scale = scale,
+                offsetX = offsetX,
+                offsetY = offsetY
+            )
+            Offset(lx, ly)
+        }
+
+        // 在页面本地坐标空间内按 [0f, contentHeightPx] 进行几何裁剪
+        val segmentsInPage = clipStrokeToYRange(localPoints, 0f, contentHeightPx)
+        if (segmentsInPage.isEmpty()) continue
 
         val cropBounds = if (uiState.isAutoCropEnabled) {
             viewModel.getCachedCropBounds(originalPageIndex) ?: PageCropper2.CropBounds.FULL
@@ -223,13 +341,10 @@ private fun commitContinuousStroke(
             cropBounds
         }
 
-        val segmentsInPage = clipStrokeToYRange(rawOffsets, contentTop, contentBottom)
-        if (segmentsInPage.isEmpty()) continue
-
         for (segment in segmentsInPage) {
             val normalizedPoints = segment.map { pt ->
                 val rawLocalX = pt.x.coerceIn(0f, viewportWidth)
-                val rawLocalY = (pt.y - contentTop).coerceIn(0f, contentHeightPx)
+                val rawLocalY = pt.y.coerceIn(0f, contentHeightPx)
 
                 val (localX, localY) = PageCoordinateTransformer.unrotatePoint(
                     rawLocalX,
@@ -264,46 +379,78 @@ private fun eraseAtViewportOffset(
     effectiveSpecs: List<PageEditSpec>,
     uiState: ViewerUiState,
     viewModel: ViewerViewModel,
-    dividerHeightPx: Float
+    dividerHeightPx: Float,
+    eraserRadiusPx: Float
 ) {
     val visibleItems = listState.layoutInfo.visibleItemsInfo
-    val item = visibleItems.firstOrNull { offset.y >= it.offset && offset.y < it.offset + it.size } ?: return
-    val spec = effectiveSpecs.getOrElse(item.index) { PageEditSpec(item.index, 0) }
-    val originalPageIndex = spec.originalPageIndex
-
-    val hasDivider = item.index < effectiveSpecs.size - 1
-    val itemDividerPx = if (hasDivider) dividerHeightPx else 0f
-    val contentTop = item.offset.toFloat()
-    val contentHeightPx = (item.size.toFloat() - itemDividerPx).coerceAtLeast(1f)
-    if (offset.y > contentTop + contentHeightPx) return
     val viewportWidth = listState.layoutInfo.viewportSize.width.toFloat().coerceAtLeast(1f)
 
-    val rawLocalX = offset.x.coerceIn(0f, viewportWidth)
-    val rawLocalY = (offset.y - contentTop).coerceIn(0f, contentHeightPx)
-
-    val (localX, localY) = PageCoordinateTransformer.unrotatePoint(
-        rawLocalX,
-        rawLocalY,
-        viewportWidth,
-        contentHeightPx,
-        spec.normalizedRotation
-    )
-
-    val cropBounds = if (uiState.isAutoCropEnabled) {
-        viewModel.getCachedCropBounds(originalPageIndex) ?: PageCropper2.CropBounds.FULL
-    } else {
-        PageCropper2.CropBounds.FULL
-    }
-    val activeCrop = if (uiState.activeColumnBounds != null && uiState.activeColumnPageIndex == originalPageIndex) {
-        uiState.activeColumnBounds
-    } else {
-        cropBounds
+    // 优先命中缩放置顶图层
+    val sortedItems = visibleItems.sortedByDescending { item ->
+        val spec = effectiveSpecs.getOrElse(item.index) { PageEditSpec(item.index, 0) }
+        val zoom = viewModel.getPageZoom(spec.originalPageIndex)
+        if (zoom.scale > 1.05f) 1 else 0
     }
 
-    val normX = (activeCrop.left + (localX / viewportWidth) * activeCrop.width).coerceIn(0f, 1f)
-    val normY = (activeCrop.top + (localY / contentHeightPx) * activeCrop.height).coerceIn(0f, 1f)
+    for (item in sortedItems) {
+        val virtualIndex = item.index
+        val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
+        val originalPageIndex = spec.originalPageIndex
 
-    viewModel.eraseAnnotationAt(originalPageIndex, NormalizedPoint(normX, normY))
+        val hasDivider = virtualIndex < effectiveSpecs.size - 1
+        val itemDividerPx = if (hasDivider) dividerHeightPx else 0f
+        val contentTop = item.offset.toFloat()
+        val contentHeightPx = (item.size.toFloat() - itemDividerPx).coerceAtLeast(1f)
+
+        val zoom = viewModel.getPageZoom(originalPageIndex)
+        val (localX, localY) = PageCoordinateTransformer.screenToLocal(
+            viewportX = offset.x,
+            viewportY = offset.y,
+            itemOffsetX = contentTop,
+            itemWidth = viewportWidth,
+            itemHeight = item.size.toFloat(),
+            scale = zoom.scale,
+            offsetX = zoom.offsetX,
+            offsetY = zoom.offsetY
+        )
+
+        if (localY in 0f..contentHeightPx && localX in -viewportWidth * 0.2f..viewportWidth * 1.2f) {
+            val (unrotX, unrotY) = PageCoordinateTransformer.unrotatePoint(
+                localX.coerceIn(0f, viewportWidth),
+                localY.coerceIn(0f, contentHeightPx),
+                viewportWidth,
+                contentHeightPx,
+                spec.normalizedRotation
+            )
+
+            val cropBounds = if (uiState.isAutoCropEnabled) {
+                viewModel.getCachedCropBounds(originalPageIndex) ?: PageCropper2.CropBounds.FULL
+            } else {
+                PageCropper2.CropBounds.FULL
+            }
+            val activeCrop = if (uiState.activeColumnBounds != null && uiState.activeColumnPageIndex == originalPageIndex) {
+                uiState.activeColumnBounds
+            } else {
+                cropBounds
+            }
+
+            val normX = (activeCrop.left + (unrotX / viewportWidth) * activeCrop.width).coerceIn(0f, 1f)
+            val normY = (activeCrop.top + (unrotY / contentHeightPx) * activeCrop.height).coerceIn(0f, 1f)
+
+            // 精准计算屏幕 12dp 物理光圈在当前页面缩放与高宽比下的各向同性碰撞判定阈值
+            val scale = zoom.scale.coerceAtLeast(1f)
+            val dynamicThreshold = (eraserRadiusPx / (viewportWidth * scale)).coerceIn(0.005f, 0.035f)
+            val pageAspect = contentHeightPx / viewportWidth
+
+            viewModel.eraseAnnotationAt(
+                pageIndex = originalPageIndex,
+                point = NormalizedPoint(normX, normY),
+                threshold = dynamicThreshold,
+                pageAspect = pageAspect
+            )
+            break
+        }
+    }
 }
 
 /**

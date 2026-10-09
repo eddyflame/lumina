@@ -63,6 +63,11 @@ fun ViewerScreen(
     val orientation = configuration.orientation
     val activity = context as? Activity
 
+    // 屏幕旋转时重置页面临时缩放，防止边界错位
+    LaunchedEffect(orientation) {
+        viewModel.resetAllPageZooms()
+    }
+
     val docInfo = uiState.documentInfo
     val effectiveSpecs = uiState.pageSpecs.ifEmpty {
         val total = docInfo?.pageCount ?: 1

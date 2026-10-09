@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import org.lumina.reader.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -101,10 +102,11 @@ fun PdfPageView(
         mutableStateOf(viewModel.getCachedCropBounds(pageIndex) ?: PageCropper2.CropBounds.FULL)
     }
 
-    // 缩放手势状态 (按 pageIndex 与屏幕方向记忆，屏幕旋转时自动重置防越界)
-    var scale by remember(pageIndex, orientation) { mutableFloatStateOf(1f) }
-    var offsetX by remember(pageIndex, orientation) { mutableFloatStateOf(0f) }
-    var offsetY by remember(pageIndex, orientation) { mutableFloatStateOf(0f) }
+    // 缩放手势状态 (按 pageIndex 由 ViewModel 统一纳管，与全视口手绘图层共享单数据源)
+    val zoomState = viewModel.getPageZoomState(pageIndex)
+    val scale = zoomState.value.scale
+    val offsetX = zoomState.value.offsetX
+    val offsetY = zoomState.value.offsetY
 
     // 当前正在手绘中的未闭合笔迹点序列
     var activeStrokePoints by remember(pageIndex) { mutableStateOf<List<NormalizedPoint>>(emptyList()) }
@@ -224,10 +226,8 @@ fun PdfPageView(
                 detectTapGestures(
                     onTap = { onTap() },
                     onDoubleTap = { offset ->
-                        if (scale > 1.05f) {
-                            scale = 1f
-                            offsetX = 0f
-                            offsetY = 0f
+                        if (zoomState.value.scale > 1.05f) {
+                            viewModel.setPageZoom(pageIndex, 1f, 0f, 0f)
                         } else {
                             if (activeColumnBounds != null) {
                                 viewModel.clearColumnFocus()
@@ -260,21 +260,22 @@ fun PdfPageView(
                     do {
                         val event = awaitPointerEvent()
                         val pointerCount = event.changes.size
+                        val currentZoom = zoomState.value
                         if (pointerCount >= 2) {
                             val zoomChange = event.calculateZoom()
                             val panChange = event.calculatePan()
-                            scale = (scale * zoomChange).coerceIn(1f, 4f)
-                            if (scale > 1f) {
-                                val maxOffsetX = (size.width * (scale - 1f)) / 2f
-                                val maxOffsetY = (size.height * (scale - 1f)) / 2f
-                                offsetX = (offsetX + panChange.x).coerceIn(-maxOffsetX, maxOffsetX)
-                                offsetY = (offsetY + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                            val newScale = (currentZoom.scale * zoomChange).coerceIn(1f, 4f)
+                            if (newScale > 1f) {
+                                val maxOffsetX = (size.width * (newScale - 1f)) / 2f
+                                val maxOffsetY = (size.height * (newScale - 1f)) / 2f
+                                val newOffsetX = (currentZoom.offsetX + panChange.x).coerceIn(-maxOffsetX, maxOffsetX)
+                                val newOffsetY = (currentZoom.offsetY + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                viewModel.setPageZoom(pageIndex, newScale, newOffsetX, newOffsetY)
                             } else {
-                                offsetX = 0f
-                                offsetY = 0f
+                                viewModel.setPageZoom(pageIndex, 1f, 0f, 0f)
                             }
                             event.changes.forEach { it.consume() }
-                        } else if (scale > 1.05f) {
+                        } else if (currentZoom.scale > 1.05f) {
                             val panChange = event.calculatePan()
                             if (!pastTouchSlop) {
                                 panAccumulated += panChange
@@ -283,10 +284,11 @@ fun PdfPageView(
                                 }
                             }
                             if (pastTouchSlop) {
-                                val maxOffsetX = (size.width * (scale - 1f)) / 2f
-                                val maxOffsetY = (size.height * (scale - 1f)) / 2f
-                                offsetX = (offsetX + panChange.x).coerceIn(-maxOffsetX, maxOffsetX)
-                                offsetY = (offsetY + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                val maxOffsetX = (size.width * (currentZoom.scale - 1f)) / 2f
+                                val maxOffsetY = (size.height * (currentZoom.scale - 1f)) / 2f
+                                val newOffsetX = (currentZoom.offsetX + panChange.x).coerceIn(-maxOffsetX, maxOffsetX)
+                                val newOffsetY = (currentZoom.offsetY + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                viewModel.setPageZoom(pageIndex, currentZoom.scale, newOffsetX, newOffsetY)
                                 event.changes.forEach {
                                     if (it.positionChanged()) it.consume()
                                 }
@@ -294,10 +296,8 @@ fun PdfPageView(
                         }
                     } while (event.changes.any { it.pressed })
 
-                    if (scale <= 1.05f) {
-                        scale = 1f
-                        offsetX = 0f
-                        offsetY = 0f
+                    if (zoomState.value.scale <= 1.05f) {
+                        viewModel.setPageZoom(pageIndex, 1f, 0f, 0f)
                     }
                 }
             }
@@ -486,24 +486,24 @@ fun PdfPageView(
                         )
                     }
 
-                    // 橡皮擦实时触控反馈光圈 (横向单页模式)
+                    // 橡皮擦实时触控反馈光圈 (横向单页模式，12.dp 半径精细光圈)
                     if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL && activeTool == AnnotationTool.ERASER) {
                         activeEraserOffset?.let { pos ->
-                            val radiusPx = 22.dp.toPx()
+                            val radiusPx = 12.dp.toPx()
                             drawCircle(
                                 color = Color(0x33FF5252),
                                 radius = radiusPx,
                                 center = pos
                             )
                             drawCircle(
-                                color = Color(0xCCFF5252),
+                                color = Color(0xEEFF5252),
                                 radius = radiusPx,
                                 center = pos,
-                                style = Stroke(width = 2.dp.toPx())
+                                style = Stroke(width = 1.5.dp.toPx())
                             )
                             drawCircle(
                                 color = Color(0xFFFF1744),
-                                radius = 3.dp.toPx(),
+                                radius = 2.dp.toPx(),
                                 center = pos
                             )
                         }
@@ -531,11 +531,14 @@ fun PdfPageView(
                 .fillMaxWidth()
                 .then(gestureModifier)
                 .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = offsetX
-                    translationY = offsetY
+                    val z = zoomState.value
+                    scaleX = z.scale
+                    scaleY = z.scale
+                    translationX = z.offsetX
+                    translationY = z.offsetY
+                    shadowElevation = if (z.scale > 1.05f) 8f else 0f
                 }
+                .zIndex(if (zoomState.value.scale > 1.05f) 1f else 0f)
         ) {
             Box(
                 modifier = pageModifier,
@@ -599,10 +602,11 @@ fun PdfPageView(
             modifier = pageModifier
                 .then(gestureModifier)
                 .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = offsetX
-                    translationY = offsetY
+                    val z = zoomState.value
+                    scaleX = z.scale
+                    scaleY = z.scale
+                    translationX = z.offsetX
+                    translationY = z.offsetY
                 },
             contentAlignment = contentAlignment
         ) {
