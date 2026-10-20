@@ -32,17 +32,17 @@ keyPassword=<您的密钥别名密码>
 ```bash
 ./gradlew assembleRelease
 ```
-- 构建产物路径：`app/build/outputs/apk/release/lumina-reader.apk`
+- 构建产物路径：`app/build/outputs/apk/release/lumina-reader-v<version>.apk` (例如 `lumina-reader-v1.2.0.apk`)
 
 ### 校验 APK 签名有效性
 ```bash
-apksigner verify --verbose --print-certs app/build/outputs/apk/release/lumina-reader.apk
+apksigner verify --verbose --print-certs app/build/outputs/apk/release/lumina-reader-v*.apk
 ```
 
 ### 部署到已连接的真机
 ```bash
 # 安装到手机
-adb install -r app/build/outputs/apk/release/lumina-reader.apk
+adb install -r app/build/outputs/apk/release/lumina-reader-v*.apk
 
 # 启动应用
 adb shell am start -n org.lumina.reader/.MainActivity

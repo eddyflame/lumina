@@ -84,6 +84,7 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
 }
 
 base {
@@ -93,8 +94,21 @@ base {
 tasks.matching { it.name == "packageRelease" }.configureEach {
     doLast {
         val releaseDir = layout.buildDirectory.dir("outputs/apk/release").get().asFile
-        val apkFile = releaseDir.listFiles()?.firstOrNull { it.extension == "apk" && it.name != "lumina-reader.apk" }
-        apkFile?.copyTo(File(releaseDir, "lumina-reader.apk"), overwrite = true)
+        val version = android.defaultConfig.versionName ?: "release"
+        val targetName = "lumina-reader-v$version.apk"
+        val sourceApk = releaseDir.listFiles()?.firstOrNull { file ->
+            file.extension == "apk" && file.name != targetName && !file.name.startsWith("lumina-reader-v")
+        }
+        if (sourceApk != null && sourceApk.exists()) {
+            sourceApk.copyTo(File(releaseDir, targetName), overwrite = true)
+            sourceApk.delete()
+        }
+        // Clean up any other APKs so only targetName remains
+        releaseDir.listFiles()?.forEach { file ->
+            if (file.extension == "apk" && file.name != targetName) {
+                file.delete()
+            }
+        }
     }
 }
 
