@@ -61,6 +61,8 @@ class PdfSearchEngine {
         pageDataCache.clear()
     }
 
+    internal fun getPageDataCache(): Map<Int, PageSearchData> = pageDataCache
+
     /**
      * 执行关键词检索
      *
@@ -525,7 +527,7 @@ private class PositionCollectingStripper : PDFTextStripper() {
         currentPageHeight = 0f
     }
 
-    fun getPositionedChars(): List<PositionedChar> = positionedChars
+    fun getPositionedChars(): List<PositionedChar> = ArrayList(positionedChars)
     fun getConstructedText(): String = textBuilder.toString()
     fun getPageWidth(): Float = currentPageWidth
     fun getPageHeight(): Float = currentPageHeight

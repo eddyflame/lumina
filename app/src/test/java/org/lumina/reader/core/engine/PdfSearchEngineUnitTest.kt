@@ -393,6 +393,88 @@ class PdfSearchEngineUnitTest {
 
         pdDoc.close()
     }
+
+    @Test
+    fun testSecondSearchHasHighlights() = kotlinx.coroutines.runBlocking {
+        val pdfFile = java.io.File("../example/search.pdf").canonicalFile
+        org.junit.Assume.assumeTrue(pdfFile.exists())
+
+        val pdDoc = com.tom_roush.pdfbox.pdmodel.PDDocument.load(pdfFile)
+        val engine = PdfSearchEngine()
+
+        // 首次搜索
+        val firstMatches = engine.search(
+            inputStreamProvider = { pdfFile.inputStream() },
+            query = "梅苑",
+            pageSpecs = emptyList(),
+            pageCount = pdDoc.numberOfPages
+        )
+        println("After first search:")
+        val cache = engine.getPageDataCache()
+        for (i in 0 until pdDoc.numberOfPages) {
+            val data = cache[i]
+            if (data != null) {
+                if (data.chars.isEmpty()) {
+                    println("  Page $i chars is EMPTY!")
+                } else {
+                    println("  Page $i chars size: ${data.chars.size}")
+                }
+            } else {
+                println("  Page $i not in cache!")
+            }
+        }
+
+        // 第二次搜索（不同词语）
+        val secondMatches = engine.search(
+            inputStreamProvider = { pdfFile.inputStream() },
+            query = "锦绣",
+            pageSpecs = emptyList(),
+            pageCount = pdDoc.numberOfPages
+        )
+        println("Second search matches count: ${secondMatches.size}")
+        assertTrue("Second search should find matches", secondMatches.isNotEmpty())
+        for (m in secondMatches) {
+            println("Second match page ${m.pageIndex} rects count: ${m.highlightRects.size}")
+            assertTrue("Second search match on page ${m.pageIndex} must have highlight rects!", m.highlightRects.isNotEmpty())
+        }
+
+        // 第三次搜索（大词汇量）
+        val thirdMatches = engine.search(
+            inputStreamProvider = { pdfFile.inputStream() },
+            query = "花园",
+            pageSpecs = emptyList(),
+            pageCount = pdDoc.numberOfPages
+        )
+        println("Third search (花园) matches count: ${thirdMatches.size}")
+        assertTrue("Third search should find many matches", thirdMatches.size > 50)
+        for (m in thirdMatches) {
+            assertTrue("Match on page ${m.pageIndex} must have rects", m.highlightRects.isNotEmpty())
+        }
+
+        // 第四次搜索（重新搜第一个词，对比坐标完全一致）
+        val fourthMatches = engine.search(
+            inputStreamProvider = { pdfFile.inputStream() },
+            query = "梅苑",
+            pageSpecs = emptyList(),
+            pageCount = pdDoc.numberOfPages
+        )
+        assertEquals("Fourth search matches count must equal first search", firstMatches.size, fourthMatches.size)
+        for (i in firstMatches.indices) {
+            assertEquals("Page index must match", firstMatches[i].pageIndex, fourthMatches[i].pageIndex)
+            assertEquals("Rects count must match", firstMatches[i].highlightRects.size, fourthMatches[i].highlightRects.size)
+            for (j in firstMatches[i].highlightRects.indices) {
+                val r1 = firstMatches[i].highlightRects[j]
+                val r4 = fourthMatches[i].highlightRects[j]
+                assertEquals("Rect left must match", r1.left, r4.left, 0.0001f)
+                assertEquals("Rect top must match", r1.top, r4.top, 0.0001f)
+                assertEquals("Rect right must match", r1.right, r4.right, 0.0001f)
+                assertEquals("Rect bottom must match", r1.bottom, r4.bottom, 0.0001f)
+            }
+        }
+        println("Fourth search verified 100% identical to first search!")
+
+        pdDoc.close()
+    }
 }
 
 
