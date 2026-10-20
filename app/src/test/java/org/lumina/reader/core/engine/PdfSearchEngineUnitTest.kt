@@ -289,4 +289,57 @@ class PdfSearchEngineUnitTest {
             titleHeight > bodyHeight * 2.0f
         )
     }
+
+    @Test
+    fun testSearchExamplePdf() = kotlinx.coroutines.runBlocking {
+        val pdfFile = java.io.File("../example/search.pdf").canonicalFile
+        org.junit.Assume.assumeTrue("example/search.pdf not present, skipping integration test", pdfFile.exists())
+
+        val engine = PdfSearchEngine()
+        val doc = com.tom_roush.pdfbox.pdmodel.PDDocument.load(pdfFile)
+        val pageCount = doc.numberOfPages
+        doc.close()
+
+        val matches = engine.search(
+            inputStreamProvider = { pdfFile.inputStream() },
+            query = "梅苑",
+            pageSpecs = emptyList(),
+            pageCount = pageCount
+        )
+
+        assertEquals(3, matches.size)
+
+        // 验证第 1 个匹配项 (页码 26 / 第 27 页：红梅苑)
+        val m1 = matches[0]
+        assertEquals(26, m1.pageIndex)
+        assertTrue("Snippet must contain 红梅苑: ${m1.snippet}", m1.snippet.contains("红梅苑"))
+        assertFalse("Snippet must not contain previous line 恒盛居: ${m1.snippet}", m1.snippet.contains("恒盛居"))
+        assertEquals(1, m1.highlightRects.size)
+        val r1 = m1.highlightRects[0]
+        assertTrue("Highlight height (${r1.height}) must be a single-line height (< 0.02)", r1.height < 0.02f)
+        assertTrue("Highlight top (${r1.top}) must accurately wrap row 1123 around 0.35-0.37", r1.top in 0.35f..0.37f)
+
+        // 验证第 2 个匹配项 (页码 27 / 第 28 页：振业梅苑)
+        val m2 = matches[1]
+        assertEquals(27, m2.pageIndex)
+        assertTrue("Snippet must contain 振业梅苑: ${m2.snippet}", m2.snippet.contains("振业梅苑"))
+        assertEquals(1, m2.highlightRects.size)
+        val r2 = m2.highlightRects[0]
+        assertTrue("Highlight height (${r2.height}) must be a single-line height (< 0.02)", r2.height < 0.02f)
+        assertTrue("Highlight top (${r2.top}) must accurately wrap row 1190 around 0.80-0.83", r2.top in 0.80f..0.83f)
+
+        // 验证第 3 个匹配项 (页码 49 / 第 50 页：松坪村梅苑)
+        val m3 = matches[2]
+        assertEquals(49, m3.pageIndex)
+        assertTrue("Snippet must contain 松坪村梅苑: ${m3.snippet}", m3.snippet.contains("松坪村梅苑"))
+        assertEquals(1, m3.highlightRects.size)
+        val r3 = m3.highlightRects[0]
+        assertTrue("Highlight height (${r3.height}) must be a single-line height (< 0.02)", r3.height < 0.02f)
+        assertTrue("Highlight top (${r3.top}) must accurately wrap row 2115 around 0.40-0.43", r3.top in 0.40f..0.43f)
+    }
 }
+
+
+
+
+

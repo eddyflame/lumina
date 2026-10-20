@@ -339,19 +339,24 @@ class PdfSearchEngine {
 
         for (tp in matchTps) {
             val tpY = tp.y
-            // 计算真实视觉字号 (PDFBox 中 tp.height 仅为启发式半高，标题字号需结合 fontSize、yScale 与 fontSizeInPt)
-            val rawFontSize = max(abs(tp.fontSize * tp.yScale), tp.fontSizeInPt.toFloat())
-            val effectiveFontHeight = max(tp.height * 1.35f, rawFontSize).coerceAtLeast(1f)
+            // 计算真实视觉字号 (PDFBox 中 tp.yScale 为文字矩阵 Y 轴缩放，已含 fontSize；fontSize 为 Tf 设定的字号)
+            // 取各度量中的合理最大值，严禁两者相乘（避免二次方放大导致高亮高度遮盖多行）
+            val effectiveFontHeight = maxOf(
+                tp.height * 1.35f,
+                abs(tp.yScale),
+                tp.fontSizeInPt.toFloat(),
+                tp.fontSize
+            ).coerceAtLeast(1f)
             val tpW = tp.width.coerceAtLeast(0.5f)
 
-            // 文字顶部（基线以上 88% 字高）与底部（基线以下 20% 字高以包容 g, y, p, q, j 等降部）
-            val tpTop = tpY - effectiveFontHeight * 0.88f
-            val tpBottom = tpY + effectiveFontHeight * 0.20f
+            // 文字顶部（基线以上 85% 字高）与底部（基线以下 18% 字高以包容 g, y, p, q, j 等降部）
+            val tpTop = tpY - effectiveFontHeight * 0.85f
+            val tpBottom = tpY + effectiveFontHeight * 0.18f
             val tpLeft = tp.x
             val tpRight = tp.x + tpW
 
             // 行判定容差（基于字高的一半，自适应大标题与正文字号）
-            val yTolerance = max(4f, effectiveFontHeight * 0.5f)
+            val yTolerance = max(3f, effectiveFontHeight * 0.45f)
 
             if (currentBaseY < 0f || abs(tpY - currentBaseY) <= yTolerance) {
                 // 属于同一行
@@ -380,19 +385,40 @@ class PdfSearchEngine {
     }
 
     /**
-     * 智能提取匹配位置附近的语境片段并净化格式
+     * 智能提取匹配位置附近的语境片段并净化格式：
+     * 1. 优先以当前行/句子为边界，避免混入上一行或下一行的碎片文字
+     * 2. 控制前置语境半径，确保关键词在单行/卡片视口内不被截断隐藏
      */
     fun extractSnippet(
         fullText: String,
         matchIndex: Int,
         matchLength: Int,
-        contextRadius: Int = 32
+        contextRadius: Int = 24
     ): String {
-        val start = max(0, matchIndex - contextRadius)
-        val end = min(fullText.length, matchIndex + matchLength + contextRadius)
+        if (fullText.isEmpty() || matchIndex < 0 || matchIndex >= fullText.length) return ""
 
-        val prefix = if (start > 0) "…" else ""
-        val suffix = if (end < fullText.length) "…" else ""
+        // 向前寻找行首或截断边界，优先保证不超过换行符且给关键词留足展示空间
+        var start = max(0, matchIndex - contextRadius)
+        val lastNewlineBefore = fullText.lastIndexOfAny(charArrayOf('\r', '\n'), matchIndex - 1)
+        if (lastNewlineBefore in start until matchIndex) {
+            start = lastNewlineBefore + 1
+        }
+        while (start < matchIndex && fullText[start].isWhitespace()) {
+            start++
+        }
+
+        // 向后寻找行尾或截断边界
+        var end = min(fullText.length, matchIndex + matchLength + contextRadius)
+        val nextNewlineAfter = fullText.indexOfAny(charArrayOf('\r', '\n'), matchIndex + matchLength)
+        if (nextNewlineAfter in (matchIndex + matchLength)..end) {
+            end = nextNewlineAfter
+        }
+        while (end > matchIndex + matchLength && fullText[end - 1].isWhitespace()) {
+            end--
+        }
+
+        val prefix = if (start > 0 && fullText[start - 1] != '\r' && fullText[start - 1] != '\n') "…" else ""
+        val suffix = if (end < fullText.length && fullText[end] != '\r' && fullText[end] != '\n') "…" else ""
 
         val rawSnippet = fullText.substring(start, end)
             .replace("[\r\n\t\u00A0\u3000]+".toRegex(), " ")

@@ -252,11 +252,31 @@ fun ViewerScreen(
         }
     }
 
-    // 监听搜索匹配项切换，平滑同步视图到命中页
+    // 监听搜索匹配项切换，平滑同步视图到命中页及高亮位置
     LaunchedEffect(uiState.searchState.currentMatchIndex) {
         val match = uiState.searchState.currentMatch
         if (match != null) {
-            navigateToPage(match.pageIndex, animate = true)
+            if (uiState.layoutMode == ReadingLayoutMode.CONTINUOUS_VERTICAL) {
+                val rect = match.highlightRects.firstOrNull()
+                val metricsH = context.resources.displayMetrics.heightPixels
+                val metricsW = context.resources.displayMetrics.widthPixels
+                if (rect != null && metricsH > 0 && metricsW > 0) {
+                    val pageInfo = viewModel.getCachedPageInfo(match.pageIndex)
+                    val rawAspect = pageInfo?.aspectRatio ?: 0.707f
+                    val pageHeightPx = if (rawAspect > 0f) metricsW.toFloat() / rawAspect else metricsW.toFloat()
+                    val targetYInPage = rect.top * pageHeightPx
+                    // 将高亮文字滚动至屏幕偏上视野 (约 30% 屏幕高度处)，确保精准入眼
+                    val desiredOffset = (targetYInPage - metricsH * 0.30f).toInt().coerceAtLeast(0)
+                    scope.launch {
+                        listState.animateScrollToItem(match.pageIndex, desiredOffset)
+                    }
+                    viewModel.onPageChanged(match.pageIndex)
+                } else {
+                    navigateToPage(match.pageIndex, animate = true)
+                }
+            } else {
+                navigateToPage(match.pageIndex, animate = true)
+            }
         }
     }
 
@@ -572,8 +592,19 @@ fun ViewerScreen(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
+                        val highlightColor = MaterialTheme.colorScheme.primary
+                        val highlightBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+                        val annotatedSnippet = remember(currentMatch.snippet, currentMatch.query, highlightColor, highlightBg) {
+                            buildAnnotatedSnippet(
+                                snippet = currentMatch.snippet,
+                                query = currentMatch.query,
+                                highlightColor = highlightColor,
+                                highlightBg = highlightBg
+                            )
+                        }
+
                         Text(
-                            text = currentMatch.snippet,
+                            text = annotatedSnippet,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,

@@ -256,7 +256,7 @@ private fun SearchResultItemCard(
 /**
  * 构造关键词加粗高亮的富文本摘要
  */
-private fun buildAnnotatedSnippet(
+internal fun buildAnnotatedSnippet(
     snippet: String,
     query: String,
     highlightColor: Color,
