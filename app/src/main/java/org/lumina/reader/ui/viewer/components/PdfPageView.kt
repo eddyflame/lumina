@@ -337,21 +337,13 @@ fun PdfPageView(
                         searchMatches.forEachIndexed { matchIdx, match ->
                             val isActive = (matchIdx == currentSearchMatchIndex)
                             val rects: List<NormalizedRect> = match.highlightRects
-                            if (rects.isEmpty()) {
-                                // 无精确坐标时退化：在页面顶部绘制一条醒目提示色带
-                                drawRect(
-                                    color = if (isActive) Color(0x66FF9800) else Color(0x44FFD600),
-                                    topLeft = Offset(0f, 0f),
-                                    size = androidx.compose.ui.geometry.Size(w, 4.dp.toPx())
-                                )
-                            } else {
-                                for (rect in rects) {
-                                    val left = rect.left * w
-                                    val top = rect.top * h
-                                    val right = rect.right * w
-                                    val bottom = rect.bottom * h
-                                    val rectSize = androidx.compose.ui.geometry.Size(right - left, bottom - top)
-                                    val topLeft = Offset(left, top)
+                            for (rect in rects) {
+                                val left = rect.left * w
+                                val top = rect.top * h
+                                val right = rect.right * w
+                                val bottom = rect.bottom * h
+                                val rectSize = androidx.compose.ui.geometry.Size(right - left, bottom - top)
+                                val topLeft = Offset(left, top)
                                     if (isActive) {
                                         // 当前选中项：鲜明橙色填充 + 描边
                                         drawRoundRect(
@@ -383,7 +375,6 @@ fun PdfPageView(
                             }
                         }
                     }
-                }
 
                 // Layer 3: 矢量注释与交互绘制画布 (叠加于页面正上方，与页面同尺寸并同步缩放)
                 var activeRawOffsets by remember { mutableStateOf<List<Offset>>(emptyList()) }
@@ -576,7 +567,7 @@ fun PdfPageView(
             }
         } else {
             Box(
-                modifier = (if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth().height(480.dp))
+                modifier = (if (layoutMode == ReadingLayoutMode.SINGLE_PAGE_HORIZONTAL) Modifier.fillMaxSize() else Modifier.fillMaxWidth().height(with(density) { croppedHeightPx.toDp() }))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                 contentAlignment = Alignment.Center
             ) {

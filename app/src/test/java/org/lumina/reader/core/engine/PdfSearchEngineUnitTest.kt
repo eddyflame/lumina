@@ -337,6 +337,62 @@ class PdfSearchEngineUnitTest {
         assertTrue("Highlight height (${r3.height}) must be a single-line height (< 0.02)", r3.height < 0.02f)
         assertTrue("Highlight top (${r3.top}) must accurately wrap row 2115 around 0.40-0.43", r3.top in 0.40f..0.43f)
     }
+
+    @Test
+    fun testAllPagesTextAndPositionsAlignment() = kotlinx.coroutines.runBlocking {
+        val pdfFile = java.io.File("../example/search.pdf").canonicalFile
+        org.junit.Assume.assumeTrue(pdfFile.exists())
+
+        val pdDoc = com.tom_roush.pdfbox.pdmodel.PDDocument.load(pdfFile)
+        val engine = PdfSearchEngine()
+
+        val matches = engine.search(
+            inputStreamProvider = { pdfFile.inputStream() },
+            query = "梅苑",
+            pageSpecs = emptyList(),
+            pageCount = pdDoc.numberOfPages
+        )
+
+        var totalDiscrepancies = 0
+        for (m in matches) {
+            println("Page ${m.pageIndex} found match: snippet=${m.snippet}, rects=${m.highlightRects.size}")
+            for (r in m.highlightRects) {
+                println("  Rect: $r, width=${r.width}")
+                if (r.width > 0.1f) {
+                    println("  WARNING: unusually wide rect on page ${m.pageIndex}! width=${r.width}")
+                    totalDiscrepancies++
+                }
+            }
+        }
+        pdDoc.close()
+        assertEquals(0, totalDiscrepancies)
+    }
+
+    @Test
+    fun testSearchJinXiu() = kotlinx.coroutines.runBlocking {
+        val pdfFile = java.io.File("../example/search.pdf").canonicalFile
+        org.junit.Assume.assumeTrue(pdfFile.exists())
+
+        val pdDoc = com.tom_roush.pdfbox.pdmodel.PDDocument.load(pdfFile)
+        val engine = PdfSearchEngine()
+
+        val matches = engine.search(
+            inputStreamProvider = { pdfFile.inputStream() },
+            query = "锦绣",
+            pageSpecs = emptyList(),
+            pageCount = pdDoc.numberOfPages
+        )
+
+        println("==== Total matches found for 锦绣: ${matches.size} ====")
+        for (m in matches) {
+            println("Page ${m.pageIndex} (PDF page ${m.pageIndex + 1}): snippet='${m.snippet}', start=${m.startCharIndex}, end=${m.endCharIndex}, rects=${m.highlightRects.size}")
+            for (r in m.highlightRects) {
+                println("   Rect: left=${r.left}, top=${r.top}, right=${r.right}, bottom=${r.bottom}, w=${r.width}, h=${r.height}")
+            }
+        }
+
+        pdDoc.close()
+    }
 }
 
 

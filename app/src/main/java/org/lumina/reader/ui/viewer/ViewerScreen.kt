@@ -45,6 +45,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import org.lumina.reader.core.annotation.AnnotationTool
+import org.lumina.reader.core.crop.PageCropper2
 import org.lumina.reader.core.model.PageEditSpec
 import org.lumina.reader.core.model.ReadingColorMode
 import org.lumina.reader.core.model.ReadingLayoutMode
@@ -261,15 +262,30 @@ fun ViewerScreen(
                 val metricsH = context.resources.displayMetrics.heightPixels
                 val metricsW = context.resources.displayMetrics.widthPixels
                 if (rect != null && metricsH > 0 && metricsW > 0) {
-                    val pageInfo = viewModel.getCachedPageInfo(match.pageIndex)
+                    val origIdx = effectiveSpecs.getOrNull(match.pageIndex)?.originalPageIndex ?: match.pageIndex
+                    val pageInfo = viewModel.getCachedPageInfo(origIdx) ?: try { viewModel.getPageInfo(origIdx) } catch (_: Exception) { null }
                     val rawAspect = pageInfo?.aspectRatio ?: 0.707f
-                    val pageHeightPx = if (rawAspect > 0f) metricsW.toFloat() / rawAspect else metricsW.toFloat()
-                    val targetYInPage = rect.top * pageHeightPx
-                    // 将高亮文字滚动至屏幕偏上视野 (约 30% 屏幕高度处)，确保精准入眼
-                    val desiredOffset = (targetYInPage - metricsH * 0.30f).toInt().coerceAtLeast(0)
-                    scope.launch {
-                        listState.animateScrollToItem(match.pageIndex, desiredOffset)
+                    val unscaledHeightPx = if (rawAspect > 0f) metricsW.toFloat() / rawAspect else metricsW.toFloat()
+
+                    val isColumnFocused = uiState.activeColumnBounds != null && uiState.activeColumnPageIndex == origIdx
+                    val cropBounds = when {
+                        isColumnFocused -> uiState.activeColumnBounds!!
+                        uiState.isAutoCropEnabled -> viewModel.getCachedCropBounds(origIdx) ?: try { viewModel.getCropBounds(origIdx) } catch (_: Exception) { PageCropper2.CropBounds.FULL }
+                        else -> PageCropper2.CropBounds.FULL
                     }
+                    val isCropped = isColumnFocused || (uiState.isAutoCropEnabled && cropBounds != PageCropper2.CropBounds.FULL)
+                    val contentWidthRatio = cropBounds.width.coerceAtLeast(0.1f)
+                    val zoomFactor = if (isCropped) 1f / contentWidthRatio else 1f
+
+                    val visualYInPage = if (isCropped) {
+                        (rect.top - cropBounds.top) * unscaledHeightPx * zoomFactor
+                    } else {
+                        rect.top * unscaledHeightPx
+                    }
+
+                    // 将高亮文字滚动至屏幕偏上视野 (约 35% 屏幕高度处)，确保精准舒适入眼
+                    val desiredOffset = (visualYInPage - metricsH * 0.35f).toInt().coerceAtLeast(0)
+                    listState.animateScrollToItem(match.pageIndex, desiredOffset)
                     viewModel.onPageChanged(match.pageIndex)
                 } else {
                     navigateToPage(match.pageIndex, animate = true)

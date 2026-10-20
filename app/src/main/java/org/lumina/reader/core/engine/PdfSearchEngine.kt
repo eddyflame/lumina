@@ -216,6 +216,7 @@ class PdfSearchEngine {
                                 endCharIndex = start + length,
                                 highlightRects = rects
                             )
+                            Log.d(TAG, "Search match: page=$virtualIndex, snippet='$snippet', rects=$rects")
                             allMatches.add(match)
                             onMatchFound(match)
                         }
@@ -246,6 +247,7 @@ class PdfSearchEngine {
                                 endCharIndex = foundIndex + trimmedQuery.length,
                                 highlightRects = rects
                             )
+                            Log.d(TAG, "Search match (fallback): page=$virtualIndex, snippet='$snippet', rects=$rects")
                             allMatches.add(match)
                             onMatchFound(match)
 
@@ -337,6 +339,7 @@ class PdfSearchEngine {
             currentMaxFontH = 0f
         }
 
+        var lastTpRight = -Float.MAX_VALUE
         for (tp in matchTps) {
             val tpY = tp.y
             // 计算真实视觉字号 (PDFBox 中 tp.yScale 为文字矩阵 Y 轴缩放，已含 fontSize；fontSize 为 Tf 设定的字号)
@@ -358,8 +361,14 @@ class PdfSearchEngine {
             // 行判定容差（基于字高的一半，自适应大标题与正文字号）
             val yTolerance = max(3f, effectiveFontHeight * 0.45f)
 
-            if (currentBaseY < 0f || abs(tpY - currentBaseY) <= yTolerance) {
-                // 属于同一行
+            // 水平连续性断开判定：
+            // 同一行内，若两字符间距过大 (例如超过 1.5 倍有效字高或 2.5 倍字宽)，说明跨越了表格列、分栏或大段空白，必须断开为独立矩形，绝不能横跨表格合并！
+            val maxHorizontalGap = max(effectiveFontHeight * 1.5f, tpW * 2.5f)
+            val isSameLine = currentBaseY >= 0f && abs(tpY - currentBaseY) <= yTolerance
+            val isHorizontalContinuous = isSameLine && (lastTpRight < 0f || (tpLeft >= lastTpRight - 3f && tpLeft - lastTpRight <= maxHorizontalGap))
+
+            if (currentBaseY < 0f || (isSameLine && isHorizontalContinuous)) {
+                // 属于同一连续文本块
                 if (currentBaseY < 0f) {
                     currentBaseY = tpY
                 }
@@ -368,8 +377,9 @@ class PdfSearchEngine {
                 currentMaxX = max(currentMaxX, tpRight)
                 currentMinY = min(currentMinY, tpTop)
                 currentMaxY = max(currentMaxY, tpBottom)
+                lastTpRight = max(lastTpRight, tpRight)
             } else {
-                // 换行：提交当前行矩形，开启新行
+                // 换行或跨表格列断开：提交当前矩形，开启新矩形
                 flushLine()
                 currentBaseY = tpY
                 currentMaxFontH = effectiveFontHeight
@@ -377,6 +387,7 @@ class PdfSearchEngine {
                 currentMaxX = tpRight
                 currentMinY = tpTop
                 currentMaxY = tpBottom
+                lastTpRight = tpRight
             }
         }
         flushLine()
@@ -430,7 +441,8 @@ class PdfSearchEngine {
 
     companion object {
         private const val TAG = "PdfSearchEngine"
-        private const val WS_CHARS = "[\\s\\u00A0\\u3000\\u2000-\\u200B]"
+        private const val WS_ANY = "[\\s\\u00A0\\u3000\\u2000-\\u200B]"
+        private const val WS_INLINE = "[ \\t\\u00A0\\u3000\\u2000-\\u200B]"
 
         /**
          * 判定字符是否属于中日韩 (CJK) 字符范围
@@ -450,8 +462,8 @@ class PdfSearchEngine {
 
         /**
          * 构建智能容错检索正则表达式：
-         * 1. CJK 字符之间允许任意空白字符 (\\s*)，解决 PDF 文字排版带有间距的“搜不到”问题
-         * 2. 词语间任意连续空格转换为 (\\s+)，容错换行符和多空格
+         * 1. 当用户连续输入 CJK 字符 (未输入空格) 时，仅容错同行微小排版空白 (0~2 个内联空格)，严禁跨越换行符或表格列长空白
+         * 2. 当用户显式输入空格或分隔符时，容错任意连续空白或换行 (\\s+)
          * 3. 严格转义字符，避免特殊符号破坏正则表达式
          */
         fun buildSearchRegex(query: String): Regex? {
@@ -468,14 +480,12 @@ class PdfSearchEngine {
                 } else {
                     if (prevChar != null) {
                         if (pendingWhitespace) {
-                            if (isCjk(prevChar) || isCjk(c)) {
-                                sb.append("$WS_CHARS*")
-                            } else {
-                                sb.append("$WS_CHARS+")
-                            }
+                            // 用户显式输入了空白或复制带空格，容错任意空白或连续紧凑文本
+                            sb.append("$WS_ANY*")
                         } else {
+                            // 用户未敲空格，对相邻 CJK 容错同行内联空白或至多一次折行，严禁跨越段落或多行
                             if (isCjk(prevChar) || isCjk(c)) {
-                                sb.append("$WS_CHARS*")
+                                sb.append("(?:$WS_INLINE*|\\r?\\n$WS_INLINE*)")
                             }
                         }
                     }

@@ -681,7 +681,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         _uiState.update { state ->
                             val nextMatchIndex = if (state.searchState.currentMatchIndex < 0) {
                                 val candidate = currentList.indexOfFirst { it.pageIndex >= currentPage }
-                                if (candidate >= 0) candidate else 0
+                                if (candidate >= 0) candidate else -1
                             } else {
                                 state.searchState.currentMatchIndex
                             }
