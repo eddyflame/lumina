@@ -3,6 +3,7 @@ package org.lumina.reader.ui.viewer
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
@@ -41,6 +42,10 @@ import org.lumina.reader.core.annotation.NormalizedPoint
 import org.lumina.reader.core.annotation.PdfAnnotation
 import org.lumina.reader.core.annotation.UndoRedoManager
 
+import org.lumina.reader.core.model.SearchMatch
+import org.lumina.reader.core.model.SearchState
+import kotlinx.coroutines.CancellationException
+
 data class PageZoomState(
     val scale: Float = 1f,
     val offsetX: Float = 0f,
@@ -71,7 +76,8 @@ data class ViewerUiState(
     val pageSpecs: List<PageEditSpec> = emptyList(),
     val isPageOrganizerOpen: Boolean = false,
     val isSaving: Boolean = false,
-    val saveUserMessage: String? = null
+    val saveUserMessage: String? = null,
+    val searchState: SearchState = SearchState()
 )
 
 class ViewerViewModel(application: Application) : AndroidViewModel(application) {
@@ -82,6 +88,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var saveProgressJob: Job? = null
     private var prefetchJob: Job? = null
+    private var searchJob: Job? = null
 
     // 页面级独立缩放手势状态 (按 pageIndex 记忆与驱动硬件加速图层)
     private val _pageZoomStates = mutableMapOf<Int, MutableState<PageZoomState>>()
@@ -163,6 +170,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openDocument(uri: Uri) {
         viewModelScope.launch {
+            closeSearch()
             resetAllPageZooms()
             undoRedoManager.clear()
             _uiState.update {
@@ -600,9 +608,170 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // -------------------------------------------------------------
+    // 文档全文检索与匹配高亮控制器
+    // -------------------------------------------------------------
+
+    fun openSearch() {
+        if (_uiState.value.annotationTool != AnnotationTool.NONE) {
+            setAnnotationTool(AnnotationTool.NONE)
+        }
+        _uiState.update { it.copy(
+            isOverlayVisible = true,
+            searchState = it.searchState.copy(isOpen = true)
+        ) }
+    }
+
+    fun closeSearch() {
+        searchJob?.cancel()
+        searchJob = null
+        _uiState.update { it.copy(
+            searchState = SearchState(isOpen = false)
+        ) }
+    }
+
+    fun onSearchQueryChanged(newQuery: String) {
+        _uiState.update { it.copy(
+            searchState = it.searchState.copy(query = newQuery)
+        ) }
+
+        searchJob?.cancel()
+        val trimmed = newQuery.trim()
+        if (trimmed.isEmpty()) {
+            _uiState.update { it.copy(
+                searchState = it.searchState.copy(
+                    isSearching = false,
+                    matches = emptyList(),
+                    currentMatchIndex = -1,
+                    scannedPageCount = 0,
+                    totalPageCount = 0
+                )
+            ) }
+            return
+        }
+
+        searchJob = viewModelScope.launch {
+            delay(350) // 350ms 优雅防抖
+
+            val total = _uiState.value.pageSpecs.ifEmpty {
+                val count = _uiState.value.documentInfo?.pageCount ?: 0
+                (0 until count).map { PageEditSpec(it, 0) }
+            }.size
+
+            _uiState.update { it.copy(
+                searchState = it.searchState.copy(
+                    isSearching = true,
+                    matches = emptyList(),
+                    currentMatchIndex = -1,
+                    scannedPageCount = 0,
+                    totalPageCount = total
+                )
+            ) }
+
+            val accumulatedMatches = mutableListOf<SearchMatch>()
+            val currentPage = _uiState.value.currentPageIndex
+
+            try {
+                repository.search(
+                    query = trimmed,
+                    pageSpecs = _uiState.value.pageSpecs,
+                    onMatchFound = { match ->
+                        accumulatedMatches.add(match)
+                        val currentList = accumulatedMatches.toList()
+                        _uiState.update { state ->
+                            val nextMatchIndex = if (state.searchState.currentMatchIndex < 0) {
+                                val candidate = currentList.indexOfFirst { it.pageIndex >= currentPage }
+                                if (candidate >= 0) candidate else 0
+                            } else {
+                                state.searchState.currentMatchIndex
+                            }
+                            state.copy(
+                                searchState = state.searchState.copy(
+                                    matches = currentList,
+                                    currentMatchIndex = nextMatchIndex
+                                )
+                            )
+                        }
+                    },
+                    onProgress = { scanned, totalPages ->
+                        _uiState.update { state ->
+                            state.copy(
+                                searchState = state.searchState.copy(
+                                    scannedPageCount = scanned,
+                                    totalPageCount = totalPages
+                                )
+                            )
+                        }
+                    }
+                )
+            } catch (_: CancellationException) {
+                // 协程被取消，正常退出
+            } catch (e: Exception) {
+                Log.e("ViewerViewModel", "Search error for query: $trimmed", e)
+            } finally {
+                _uiState.update { state ->
+                    val finalMatches = state.searchState.matches
+                    val finalIndex = if (finalMatches.isNotEmpty() && state.searchState.currentMatchIndex < 0) {
+                        val candidate = finalMatches.indexOfFirst { it.pageIndex >= currentPage }
+                        if (candidate >= 0) candidate else 0
+                    } else {
+                        state.searchState.currentMatchIndex
+                    }
+                    state.copy(
+                        searchState = state.searchState.copy(
+                            isSearching = false,
+                            currentMatchIndex = finalIndex
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun nextSearchMatch() {
+        val state = _uiState.value.searchState
+        if (state.matches.isEmpty()) return
+        val nextIndex = (state.currentMatchIndex + 1) % state.matches.size
+        _uiState.update { it.copy(
+            searchState = state.copy(currentMatchIndex = nextIndex)
+        ) }
+    }
+
+    fun prevSearchMatch() {
+        val state = _uiState.value.searchState
+        if (state.matches.isEmpty()) return
+        val prevIndex = if (state.currentMatchIndex <= 0) state.matches.size - 1 else state.currentMatchIndex - 1
+        _uiState.update { it.copy(
+            searchState = state.copy(currentMatchIndex = prevIndex)
+        ) }
+    }
+
+    fun selectSearchMatch(index: Int) {
+        val state = _uiState.value.searchState
+        if (index !in state.matches.indices) return
+        _uiState.update { it.copy(
+            searchState = state.copy(currentMatchIndex = index, isResultsListOpen = false)
+        ) }
+    }
+
+    fun toggleSearchResultsList() {
+        _uiState.update { it.copy(
+            searchState = it.searchState.copy(
+                isResultsListOpen = !it.searchState.isResultsListOpen
+            )
+        ) }
+    }
+
+    fun setSearchResultsListOpen(isOpen: Boolean) {
+        _uiState.update { it.copy(
+            searchState = it.searchState.copy(isResultsListOpen = isOpen)
+        ) }
+    }
+
     override fun onCleared() {
         super.onCleared()
+        closeSearch()
         flushProgressSave()
-        repository.pdfEngine.close()
+        repository.closeDocument()
     }
 }

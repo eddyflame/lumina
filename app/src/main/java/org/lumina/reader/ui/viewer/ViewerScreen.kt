@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.lumina.reader.R
@@ -225,6 +227,8 @@ fun ViewerScreen(
     // 细粒度预测性返回拦截
     BackHandler(enabled = true) {
         when {
+            uiState.searchState.isResultsListOpen -> viewModel.setSearchResultsListOpen(false)
+            uiState.searchState.isOpen -> viewModel.closeSearch()
             drawerState.isOpen -> scope.launch { drawerState.close() }
             uiState.annotationTool != AnnotationTool.NONE -> viewModel.setAnnotationTool(AnnotationTool.NONE)
             uiState.activeColumnBounds != null -> viewModel.clearColumnFocus()
@@ -245,6 +249,14 @@ fun ViewerScreen(
                 if (animate) pagerState.animateScrollToPage(safeIndex)
                 else pagerState.scrollToPage(safeIndex)
             }
+        }
+    }
+
+    // 监听搜索匹配项切换，平滑同步视图到命中页
+    LaunchedEffect(uiState.searchState.currentMatchIndex) {
+        val match = uiState.searchState.currentMatch
+        if (match != null) {
+            navigateToPage(match.pageIndex, animate = true)
         }
     }
 
@@ -323,6 +335,14 @@ fun ViewerScreen(
                                     key = { index -> effectiveSpecs.getOrNull(index)?.originalPageIndex ?: index }
                                 ) { virtualIndex ->
                                     val spec = effectiveSpecs.getOrElse(virtualIndex) { PageEditSpec(virtualIndex, 0) }
+                                    // 计算当前页的搜索命中列表及当前选中索引
+                                    val pageSearchMatches = if (uiState.searchState.isOpen) {
+                                        uiState.searchState.matches.filter { it.pageIndex == virtualIndex }
+                                    } else emptyList()
+                                    val activeMatch = uiState.searchState.currentMatch
+                                    val pageActiveMatchIdx = if (activeMatch != null && activeMatch.pageIndex == virtualIndex) {
+                                        pageSearchMatches.indexOfFirst { it.globalMatchIndex == activeMatch.globalMatchIndex }
+                                    } else -1
                                     PdfPageView(
                                         pageIndex = spec.originalPageIndex,
                                         pageCount = pageCount,
@@ -338,6 +358,8 @@ fun ViewerScreen(
                                         annotationColor = uiState.annotationColor,
                                         annotationStrokeWidthDp = uiState.annotationStrokeWidthDp,
                                         pageAnnotations = uiState.annotations[spec.originalPageIndex] ?: emptyList(),
+                                        searchMatches = pageSearchMatches,
+                                        currentSearchMatchIndex = pageActiveMatchIdx,
                                         showDivider = virtualIndex < pageCount - 1,
                                         onAddInkAnnotation = { idx, strokes, isHighlighter ->
                                             viewModel.addInkAnnotation(idx, strokes, isHighlighter)
@@ -376,6 +398,13 @@ fun ViewerScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
+                                val pageSearchMatchesHoriz = if (uiState.searchState.isOpen) {
+                                    uiState.searchState.matches.filter { it.pageIndex == virtualIndex }
+                                } else emptyList()
+                                val activeMatchHoriz = uiState.searchState.currentMatch
+                                val pageActiveMatchIdxHoriz = if (activeMatchHoriz != null && activeMatchHoriz.pageIndex == virtualIndex) {
+                                    pageSearchMatchesHoriz.indexOfFirst { it.globalMatchIndex == activeMatchHoriz.globalMatchIndex }
+                                } else -1
                                 PdfPageView(
                                     pageIndex = spec.originalPageIndex,
                                     pageCount = pageCount,
@@ -391,6 +420,8 @@ fun ViewerScreen(
                                     annotationColor = uiState.annotationColor,
                                     annotationStrokeWidthDp = uiState.annotationStrokeWidthDp,
                                     pageAnnotations = uiState.annotations[spec.originalPageIndex] ?: emptyList(),
+                                    searchMatches = pageSearchMatchesHoriz,
+                                    currentSearchMatchIndex = pageActiveMatchIdxHoriz,
                                     showDivider = false,
                                     onAddInkAnnotation = { idx, strokes, isHighlighter ->
                                         viewModel.addInkAnnotation(idx, strokes, isHighlighter)
@@ -444,54 +475,113 @@ fun ViewerScreen(
                 }
             }
 
-            // 顶部沉浸式工具栏 (仅在非注释模式且 Overlay 可见时展示)
+            // 顶部沉浸式工具栏 / 搜索栏 (仅在非注释模式且 Overlay 可见时展示)
             AnimatedVisibility(
                 visible = uiState.isOverlayVisible && uiState.annotationTool == AnnotationTool.NONE,
                 enter = slideInVertically { -it } + fadeIn(),
                 exit = slideOutVertically { -it } + fadeOut(),
                 modifier = Modifier.align(Alignment.TopCenter)
             ) {
-                ViewerTopBar(
-                    uiState = uiState,
-                    isDrawerOpen = drawerState.isOpen,
-                    onBack = onBackToShelf,
-                    onToggleDrawer = {
-                        scope.launch {
-                            if (drawerState.isOpen) drawerState.close() else drawerState.open()
+                if (uiState.searchState.isOpen) {
+                    ViewerSearchBar(
+                        searchState = uiState.searchState,
+                        onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                        onPrevMatch = { viewModel.prevSearchMatch() },
+                        onNextMatch = { viewModel.nextSearchMatch() },
+                        onToggleResultsList = { viewModel.toggleSearchResultsList() },
+                        onClose = { viewModel.closeSearch() }
+                    )
+                } else {
+                    ViewerTopBar(
+                        uiState = uiState,
+                        isDrawerOpen = drawerState.isOpen,
+                        onBack = onBackToShelf,
+                        onToggleDrawer = {
+                            scope.launch {
+                                if (drawerState.isOpen) drawerState.close() else drawerState.open()
+                            }
+                        },
+                        onOpenSearch = { viewModel.openSearch() },
+                        onToggleAutoCrop = { viewModel.toggleAutoCrop() },
+                        onToggleColorMode = {
+                            val next = if (uiState.colorMode == ReadingColorMode.NORMAL) {
+                                ReadingColorMode.SOFT_DARK
+                            } else {
+                                ReadingColorMode.NORMAL
+                            }
+                            viewModel.setColorMode(next)
+                        },
+                        onToggleAnnotationMode = {
+                            val nextTool = if (uiState.annotationTool == AnnotationTool.NONE) {
+                                AnnotationTool.PEN
+                            } else {
+                                AnnotationTool.NONE
+                            }
+                            viewModel.setAnnotationTool(nextTool)
+                        },
+                        onToggleFullscreen = { viewModel.toggleFullscreen() },
+                        onToggleLandscape = { viewModel.toggleLandscape() },
+                        onToggleLayoutMode = { viewModel.toggleLayoutMode() },
+                        onOpenPageOrganizer = { viewModel.setPageOrganizerOpen(true) },
+                        onShowJumpDialog = { showJumpDialog = true },
+                        onShowDocInfoDialog = { showDocInfoDialog = true },
+                        onShowAboutDialog = { showAboutDialog = true },
+                        onSaveAsDocument = {
+                            val defaultName = docInfo?.title?.let {
+                                val base = if (it.endsWith(".pdf", ignoreCase = true)) it.dropLast(4) else it
+                                "${base}_edited.pdf"
+                            } ?: "Document_edited.pdf"
+                            saveAsLauncher.launch(defaultName)
                         }
-                    },
-                    onToggleAutoCrop = { viewModel.toggleAutoCrop() },
-                    onToggleColorMode = {
-                        val next = if (uiState.colorMode == ReadingColorMode.NORMAL) {
-                            ReadingColorMode.SOFT_DARK
-                        } else {
-                            ReadingColorMode.NORMAL
+                    )
+                }
+            }
+
+            // 搜索当前命中项浮动提示胶囊 (点击直达全部匹配列表)
+            if (uiState.searchState.isOpen && uiState.searchState.currentMatch != null) {
+                val currentMatch = uiState.searchState.currentMatch!!
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = if (uiState.isOverlayVisible) 88.dp else 24.dp)
+                        .padding(horizontal = 20.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
+                    tonalElevation = 6.dp,
+                    shadowElevation = 6.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clickable { viewModel.setSearchResultsListOpen(true) }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Text(
+                                text = stringResource(R.string.page_number_format, currentMatch.pageIndex + 1),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
                         }
-                        viewModel.setColorMode(next)
-                    },
-                    onToggleAnnotationMode = {
-                        val nextTool = if (uiState.annotationTool == AnnotationTool.NONE) {
-                            AnnotationTool.PEN
-                        } else {
-                            AnnotationTool.NONE
-                        }
-                        viewModel.setAnnotationTool(nextTool)
-                    },
-                    onToggleFullscreen = { viewModel.toggleFullscreen() },
-                    onToggleLandscape = { viewModel.toggleLandscape() },
-                    onToggleLayoutMode = { viewModel.toggleLayoutMode() },
-                    onOpenPageOrganizer = { viewModel.setPageOrganizerOpen(true) },
-                    onShowJumpDialog = { showJumpDialog = true },
-                    onShowDocInfoDialog = { showDocInfoDialog = true },
-                    onShowAboutDialog = { showAboutDialog = true },
-                    onSaveAsDocument = {
-                        val defaultName = docInfo?.title?.let {
-                            val base = if (it.endsWith(".pdf", ignoreCase = true)) it.dropLast(4) else it
-                            "${base}_edited.pdf"
-                        } ?: "Document_edited.pdf"
-                        saveAsLauncher.launch(defaultName)
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = currentMatch.snippet,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
                     }
-                )
+                }
             }
 
             // 底部常规控制台与翻页滑块 (仅在非注释模式且 Overlay 可见时展示)
@@ -537,6 +627,19 @@ fun ViewerScreen(
                     .padding(bottom = 80.dp)
             )
         }
+    }
+
+    // 搜索结果全部匹配项抽屉
+    if (uiState.searchState.isResultsListOpen) {
+        SearchResultsSheet(
+            searchState = uiState.searchState,
+            onSelectMatch = { matchIndex ->
+                viewModel.selectSearchMatch(matchIndex)
+            },
+            onClose = {
+                viewModel.setSearchResultsListOpen(false)
+            }
+        )
     }
 
     // 页面跳转弹窗

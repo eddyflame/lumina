@@ -46,6 +46,18 @@ interface PdfEngine {
     suspend fun getOutlines(): List<PdfOutlineItem>
 
     /**
+     * 在文档中全文检索关键词 (支持流式边检索边上报)
+     */
+    suspend fun search(
+        query: String,
+        pageSpecs: List<org.lumina.reader.core.model.PageEditSpec> = emptyList(),
+        inputStreamProvider: (() -> java.io.InputStream?)? = null,
+        tempDir: java.io.File? = null,
+        onMatchFound: suspend (org.lumina.reader.core.model.SearchMatch) -> Unit = {},
+        onProgress: suspend (scannedPages: Int, totalPages: Int) -> Unit = { _, _ -> }
+    ): List<org.lumina.reader.core.model.SearchMatch> = emptyList()
+
+    /**
      * 热重载新的文件描述符（在原地保存覆写后调用，实现平滑原子切换，避免 UI 崩溃）
      */
     suspend fun reload(pfd: ParcelFileDescriptor): PdfDocumentInfo

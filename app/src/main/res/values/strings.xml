@@ -1,11 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App & General -->
-    <string name="app_name">Lumina</string>
+    <string name="app_name">Lumina Reader</string>
     <string name="app_description">Next-Gen Minimalist High Performance PDF Reader</string>
     <string name="app_subtitle">Next-Gen PDF Reader</string>
     <string name="about_app_desc">A next-generation PDF reader focused on modern eye-friendly reading and in-place vector annotation. Features smart auto-cropping, seamless continuous handwriting, multi-functional eraser, and non-destructive safe export.</string>
     <string name="app_name_label">App Name</string>
+
+    <!-- In-Document Search -->
+    <string name="search_in_document">Search in document</string>
+    <string name="search_document_hint">Search in document…</string>
+    <string name="search_no_results">No matches found</string>
+    <string name="search_results_title">Search Results (%1$d)</string>
+    <string name="search_results_count_format">%1$d / %2$d</string>
+    <string name="search_prev_match">Previous match</string>
+    <string name="search_next_match">Next match</string>
+    <string name="search_close">Close search</string>
+    <string name="search_list_results">View all matches</string>
+    <string name="searching_progress">Searching… %1$d / %2$d pages</string>
+    <string name="search_keyword_prefix">Keyword: \"%1$s\"</string>
     <string name="version_label">Version</string>
     <string name="author_label">Author</string>
     <string name="action_open_document">Open Document</string>

@@ -40,6 +40,7 @@ fun ViewerTopBar(
     onShowDocInfoDialog: () -> Unit,
     onShowAboutDialog: () -> Unit,
     onSaveAsDocument: () -> Unit,
+    onOpenSearch: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
@@ -66,6 +67,14 @@ fun ViewerTopBar(
                 }
             },
             actions = {
+                // 0. 文档内容实时搜索
+                ViewerActionButton(
+                    icon = Icons.Default.Search,
+                    contentDescription = stringResource(R.string.search_in_document),
+                    isActive = uiState.searchState.isOpen,
+                    onClick = onOpenSearch
+                )
+
                 // 1. 目录大纲抽屉唤起按钮
                 ViewerActionButton(
                     icon = Icons.AutoMirrored.Filled.FormatListBulleted,

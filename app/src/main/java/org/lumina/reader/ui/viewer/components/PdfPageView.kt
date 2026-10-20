@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.font.FontWeight
@@ -47,8 +48,10 @@ import org.lumina.reader.core.annotation.NormalizedPoint
 import org.lumina.reader.core.annotation.PageCoordinateTransformer
 import org.lumina.reader.core.annotation.PdfAnnotation
 import org.lumina.reader.core.crop.PageCropper2
+import org.lumina.reader.core.model.NormalizedRect
 import org.lumina.reader.core.model.ReadingColorMode
 import org.lumina.reader.core.model.ReadingLayoutMode
+import org.lumina.reader.core.model.SearchMatch
 import org.lumina.reader.ui.viewer.ViewerViewModel
 import kotlin.math.roundToInt
 
@@ -76,6 +79,8 @@ fun PdfPageView(
     annotationColor: Long,
     annotationStrokeWidthDp: Float,
     pageAnnotations: List<PdfAnnotation>,
+    searchMatches: List<SearchMatch> = emptyList(),
+    currentSearchMatchIndex: Int = -1,
     showDivider: Boolean = (pageIndex < pageCount - 1),
     onAddInkAnnotation: (pageIndex: Int, strokes: List<List<NormalizedPoint>>, isHighlighter: Boolean) -> Unit,
     onEraseAnnotation: (pageIndex: Int, point: NormalizedPoint) -> Unit,
@@ -320,6 +325,65 @@ fun PdfPageView(
                     colorFilter = colorFilter,
                     modifier = Modifier.fillMaxSize()
                 )
+
+                // Layer 2: 搜索命中高亮层
+                if (searchMatches.isNotEmpty()) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val w = size.width
+                        val h = size.height
+                        val highlightBlendMode = AnnotationColorThemeAdapter.resolveHighlighterBlendMode(colorMode)
+                        val cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+
+                        searchMatches.forEachIndexed { matchIdx, match ->
+                            val isActive = (matchIdx == currentSearchMatchIndex)
+                            val rects: List<NormalizedRect> = match.highlightRects
+                            if (rects.isEmpty()) {
+                                // 无精确坐标时退化：在页面顶部绘制一条醒目提示色带
+                                drawRect(
+                                    color = if (isActive) Color(0x66FF9800) else Color(0x44FFD600),
+                                    topLeft = Offset(0f, 0f),
+                                    size = androidx.compose.ui.geometry.Size(w, 4.dp.toPx())
+                                )
+                            } else {
+                                for (rect in rects) {
+                                    val left = rect.left * w
+                                    val top = rect.top * h
+                                    val right = rect.right * w
+                                    val bottom = rect.bottom * h
+                                    val rectSize = androidx.compose.ui.geometry.Size(right - left, bottom - top)
+                                    val topLeft = Offset(left, top)
+                                    if (isActive) {
+                                        // 当前选中项：鲜明橙色填充 + 描边
+                                        drawRoundRect(
+                                            color = if (colorMode == ReadingColorMode.NORMAL) Color(0x66FF9800) else Color(0x88FF9800),
+                                            topLeft = topLeft,
+                                            size = rectSize,
+                                            cornerRadius = cornerRadius,
+                                            blendMode = highlightBlendMode
+                                        )
+                                        drawRoundRect(
+                                            color = Color(0xE6FF6D00),
+                                            topLeft = topLeft,
+                                            size = rectSize,
+                                            cornerRadius = cornerRadius,
+                                            style = Stroke(width = 1.5.dp.toPx()),
+                                            blendMode = BlendMode.SrcOver
+                                        )
+                                    } else {
+                                        // 非选中项：柔和黄色半透明
+                                        drawRoundRect(
+                                            color = if (colorMode == ReadingColorMode.NORMAL) Color(0x44FFD600) else Color(0x66FFD600),
+                                            topLeft = topLeft,
+                                            size = rectSize,
+                                            cornerRadius = cornerRadius,
+                                            blendMode = highlightBlendMode
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Layer 3: 矢量注释与交互绘制画布 (叠加于页面正上方，与页面同尺寸并同步缩放)
                 var activeRawOffsets by remember { mutableStateOf<List<Offset>>(emptyList()) }

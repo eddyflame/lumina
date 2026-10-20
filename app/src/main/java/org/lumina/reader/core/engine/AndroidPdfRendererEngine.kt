@@ -37,6 +37,7 @@ class AndroidPdfRendererEngine(
 
     private val pageInfoCache = mutableMapOf<Int, PageInfo>()
     private val cropBoundsCache = mutableMapOf<Int, PageCropper2.CropBounds>()
+    private val searchEngine = PdfSearchEngine()
 
     override suspend fun open(
         uri: Uri,
@@ -179,13 +180,55 @@ class AndroidPdfRendererEngine(
         try {
             val dupPfd = currentPfd.dup() ?: return@withContext emptyList()
             dupPfd.use { dpfd ->
+                try {
+                    android.system.Os.lseek(dpfd.fileDescriptor, 0, android.system.OsConstants.SEEK_SET)
+                } catch (e: Exception) {
+                    android.util.Log.e("AndroidPdfRendererEngine", "lseek to 0 failed in getOutlines", e)
+                }
                 FileInputStream(dpfd.fileDescriptor).use { stream ->
                     PdfOutlineExtractor.extractOutlines(stream)
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            android.util.Log.e("AndroidPdfRendererEngine", "Failed to get outlines", e)
             emptyList()
         }
+    }
+
+    override suspend fun search(
+        query: String,
+        pageSpecs: List<org.lumina.reader.core.model.PageEditSpec>,
+        inputStreamProvider: (() -> java.io.InputStream?)?,
+        tempDir: java.io.File?,
+        onMatchFound: suspend (org.lumina.reader.core.model.SearchMatch) -> Unit,
+        onProgress: suspend (scannedPages: Int, totalPages: Int) -> Unit
+    ): List<org.lumina.reader.core.model.SearchMatch> = withContext(Dispatchers.IO) {
+        val count = docInfo?.pageCount ?: 0
+        val effectiveProvider: () -> java.io.InputStream? = inputStreamProvider ?: provider@{
+            val currentPfd = pfd ?: return@provider null
+            try {
+                val dupPfd = currentPfd.dup() ?: return@provider null
+                try {
+                    android.system.Os.lseek(dupPfd.fileDescriptor, 0, android.system.OsConstants.SEEK_SET)
+                } catch (e: Exception) {
+                    android.util.Log.e("AndroidPdfRendererEngine", "lseek to 0 failed on dupPfd", e)
+                }
+                ParcelFileDescriptor.AutoCloseInputStream(dupPfd)
+            } catch (e: Exception) {
+                android.util.Log.e("AndroidPdfRendererEngine", "Failed to dup pfd for search", e)
+                null
+            }
+        }
+
+        searchEngine.search(
+            inputStreamProvider = effectiveProvider,
+            tempDir = tempDir,
+            query = query,
+            pageSpecs = pageSpecs,
+            pageCount = count,
+            onMatchFound = onMatchFound,
+            onProgress = onProgress
+        )
     }
 
     override suspend fun reload(pfd: ParcelFileDescriptor): PdfDocumentInfo = withContext(Dispatchers.IO) {
@@ -217,6 +260,7 @@ class AndroidPdfRendererEngine(
         bitmapCache.clear()
         pageInfoCache.clear()
         cropBoundsCache.clear()
+        searchEngine.clearCache()
     }
 
     override fun getCachedCropBounds(pageIndex: Int): PageCropper2.CropBounds? {
@@ -238,6 +282,7 @@ class AndroidPdfRendererEngine(
         bitmapCache.clear()
         pageInfoCache.clear()
         cropBoundsCache.clear()
+        searchEngine.clearCache()
         try {
             renderer?.close()
         } catch (_: Exception) {}

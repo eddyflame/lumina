@@ -14,12 +14,14 @@ import org.lumina.reader.core.engine.PdfEngine
 import org.lumina.reader.core.export.PdfDocumentExporter
 import org.lumina.reader.core.model.PageEditSpec
 import org.lumina.reader.core.model.PdfDocumentInfo
+import org.lumina.reader.core.model.SearchMatch
 import org.lumina.reader.data.db.HistoryDatabase
 import org.lumina.reader.data.db.RecentDocument
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 
 /**
  * 现代 SAF (Storage Access Framework) 与本地持久化书架仓库
@@ -31,10 +33,14 @@ class DocumentRepository(
 
     private val historyDb = HistoryDatabase(context)
 
+    @Volatile
+    private var currentUri: Uri? = null
+
     /** 响应式书架流 */
     val recentDocuments: StateFlow<List<RecentDocument>> = historyDb.recentDocsFlow
 
     suspend fun openDocument(uri: Uri): PdfDocumentInfo {
+        currentUri = uri
         // 对系统 SAF 选择器授予的 content:// URI 持久化权限，确保跨进程和重启后可继续从书架直接打开
         if (uri.scheme == "content") {
             try {
@@ -238,6 +244,42 @@ class DocumentRepository(
 
     fun clearAllHistory() {
         historyDb.clearAll()
+    }
+
+    /**
+     * 在当前打开的文档中全文检索关键词 (通过 ContentResolver 获取独立的数据输入流)
+     */
+    suspend fun search(
+        query: String,
+        pageSpecs: List<PageEditSpec> = emptyList(),
+        onMatchFound: suspend (SearchMatch) -> Unit = {},
+        onProgress: suspend (scannedPages: Int, totalPages: Int) -> Unit = { _, _ -> }
+    ): List<SearchMatch> {
+        val uri = currentUri
+        val streamProvider: (() -> InputStream?)? = if (uri != null) {
+            {
+                try {
+                    context.contentResolver.openInputStream(uri)
+                } catch (e: Exception) {
+                    android.util.Log.e("DocumentRepository", "Failed to openInputStream for search: $uri", e)
+                    null
+                }
+            }
+        } else null
+
+        return pdfEngine.search(
+            query = query,
+            pageSpecs = pageSpecs,
+            inputStreamProvider = streamProvider,
+            tempDir = context.cacheDir,
+            onMatchFound = onMatchFound,
+            onProgress = onProgress
+        )
+    }
+
+    fun closeDocument() {
+        currentUri = null
+        pdfEngine.close()
     }
 
     private fun queryDocumentTitle(uri: Uri): String? {

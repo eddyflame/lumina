@@ -1,11 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App & General -->
-    <string name="app_name">Lumina</string>
+    <string name="app_name">Lumina Reader</string>
     <string name="app_description">极简、现代、高性能的原位矢量批注 PDF 阅读器</string>
     <string name="app_subtitle">Next-Gen PDF Reader</string>
     <string name="about_app_desc">专注现代护眼阅读与原位矢量批注的新一代 PDF 阅读器。支持智能裁白边、连续阅读无缝书写、多功能橡皮擦与不破坏原文件的副本安全另存为机制。</string>
     <string name="app_name_label">软件名称</string>
+
+    <!-- In-Document Search -->
+    <string name="search_in_document">搜索文档内容</string>
+    <string name="search_document_hint">在文档中搜索…</string>
+    <string name="search_no_results">未找到匹配内容</string>
+    <string name="search_results_title">搜索结果 (%1$d)</string>
+    <string name="search_results_count_format">%1$d / %2$d</string>
+    <string name="search_prev_match">上一处</string>
+    <string name="search_next_match">下一处</string>
+    <string name="search_close">退出搜索</string>
+    <string name="search_list_results">查看匹配列表</string>
+    <string name="searching_progress">正在检索… %1$d / %2$d 页</string>
+    <string name="search_keyword_prefix">关键词：\"%1$s\"</string>
     <string name="version_label">软件版本</string>
     <string name="author_label">作者</string>
     <string name="action_open_document">打开文档</string>
