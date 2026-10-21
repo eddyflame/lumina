@@ -148,6 +148,7 @@
     <string name="page_input_label">页码</string>
     <string name="action_jump">跳转</string>
     <string name="doc_info_name">名称: %1$s</string>
+    <string name="doc_info_path">路径: %1$s</string>
     <string name="doc_info_total_pages">总页数: %1$d 页</string>
     <string name="doc_info_current_page">当前阅读: 第 %1$d 页</string>
     <string name="doc_info_size">文件大小: %1$s</string>
@@ -165,4 +166,8 @@
     <string name="msg_save_success">另存为成功</string>
     <string name="msg_save_oom">保存失败：设备可用内存不足，已释放临时缓存，请重试</string>
     <string name="msg_save_failed">另存为失败: %1$s</string>
+    <string name="document_invalid_badge">已失效</string>
+    <string name="document_invalid_message">该文件已失效或已被移动、删除，无法打开</string>
+    <string name="action_back_to_shelf">返回书架</string>
+    <string name="error_document_not_found">未找到指定文档，该文件可能已被移除</string>
 </resources>

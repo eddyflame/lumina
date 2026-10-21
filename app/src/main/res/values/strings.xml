@@ -148,6 +148,7 @@
     <string name="page_input_label">Page</string>
     <string name="action_jump">Jump</string>
     <string name="doc_info_name">Name: %1$s</string>
+    <string name="doc_info_path">Path: %1$s</string>
     <string name="doc_info_total_pages">Total Pages: %1$d pages</string>
     <string name="doc_info_current_page">Current Page: Page %1$d</string>
     <string name="doc_info_size">File Size: %1$s</string>
@@ -165,4 +166,8 @@
     <string name="msg_save_success">Saved successfully</string>
     <string name="msg_save_oom">Save failed: Insufficient device memory. Temporary cache cleared, please try again.</string>
     <string name="msg_save_failed">Save failed: %1$s</string>
+    <string name="document_invalid_badge">Invalid</string>
+    <string name="document_invalid_message">This file is invalid, moved, or deleted, and cannot be opened.</string>
+    <string name="action_back_to_shelf">Back to Bookshelf</string>
+    <string name="error_document_not_found">Document not found, it may have been removed.</string>
 </resources>

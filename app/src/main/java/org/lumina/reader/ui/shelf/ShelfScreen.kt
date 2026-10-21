@@ -18,12 +18,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import org.lumina.reader.R
 import org.lumina.reader.data.db.RecentDocument
 import org.lumina.reader.ui.settings.ThemeSettingsBottomSheet
@@ -42,6 +45,21 @@ fun ShelfScreen(
     var showThemeSheet by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // 页面呈现时异步校验书架中各文档的有效性
+    LaunchedEffect(Unit) {
+        viewModel.validateRecentDocuments()
+    }
+
+    // 监听文档打开错误通知并展示轻提示
+    LaunchedEffect(Unit) {
+        viewModel.openDocumentErrorEvent.receiveAsFlow().collect { msg ->
+            snackbarHostState.showSnackbar(msg)
+        }
+    }
 
     val filteredList = remember(recentList, searchQuery) {
         if (searchQuery.isBlank()) recentList
@@ -56,6 +74,7 @@ fun ShelfScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeTopAppBar(
                 title = {
@@ -241,6 +260,13 @@ fun ShelfScreen(
                     RecentDocumentCard(
                         doc = doc,
                         onClick = { onOpenPdfUri(doc.uri) },
+                        onInvalidClick = {
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    context.getString(R.string.document_invalid_message)
+                                )
+                            }
+                        },
                         onTogglePin = { viewModel.togglePinRecentDocument(doc.uriString, !doc.isPinned) },
                         onDelete = { viewModel.deleteRecentDocument(doc.uriString) }
                     )
@@ -297,6 +323,7 @@ fun ShelfScreen(
 fun RecentDocumentCard(
     doc: RecentDocument,
     onClick: () -> Unit,
+    onInvalidClick: () -> Unit,
     onTogglePin: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -304,13 +331,23 @@ fun RecentDocumentCard(
     val context = LocalContext.current
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (!doc.isValid) Modifier.alpha(0.65f) else Modifier),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (doc.isPinned) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface
+            containerColor = when {
+                !doc.isValid -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                doc.isPinned -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                else -> MaterialTheme.colorScheme.surface
+            }
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(
+            1.dp,
+            if (!doc.isValid) MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (doc.isValid) 1.dp else 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -318,11 +355,11 @@ fun RecentDocumentCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 点击主体区域打开文档
+            // 点击主体区域：有效文档打开，失效文档拦截并提示
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onClick),
+                    .clickable(onClick = if (doc.isValid) onClick else onInvalidClick),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 文档格式图标徽章
@@ -330,13 +367,23 @@ fun RecentDocumentCard(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (doc.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
+                        .background(
+                            when {
+                                !doc.isValid -> MaterialTheme.colorScheme.errorContainer
+                                doc.isPinned -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Default.Description,
+                        if (!doc.isValid) Icons.Default.BrokenImage else Icons.Default.Description,
                         contentDescription = null,
-                        tint = if (doc.isPinned) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = when {
+                            !doc.isValid -> MaterialTheme.colorScheme.onErrorContainer
+                            doc.isPinned -> MaterialTheme.colorScheme.onPrimary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
 
@@ -344,7 +391,7 @@ fun RecentDocumentCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (doc.isPinned) {
+                        if (doc.isPinned && doc.isValid) {
                             Icon(
                                 Icons.Default.PushPin,
                                 contentDescription = stringResource(R.string.pinned),
@@ -357,29 +404,50 @@ fun RecentDocumentCard(
                         Text(
                             text = doc.title,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            maxLines = 1
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
+                        if (!doc.isValid) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.errorContainer
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.document_invalid_badge),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "${doc.getProgressFormatted(context)} · ${doc.getTimeFormatted(context)}",
+                        text = if (doc.isValid) {
+                            "${doc.getProgressFormatted(context)} · ${doc.getTimeFormatted(context)}"
+                        } else {
+                            stringResource(R.string.document_invalid_message)
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (doc.isValid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    if (doc.isValid) {
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                    LinearProgressIndicator(
-                        progress = { doc.progressPercent },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                        LinearProgressIndicator(
+                            progress = { doc.progressPercent },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
                 }
             }
 

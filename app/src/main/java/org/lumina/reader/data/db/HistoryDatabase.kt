@@ -39,14 +39,17 @@ class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
                 $COL_LAST_PAGE INTEGER NOT NULL,
                 $COL_PROGRESS REAL NOT NULL,
                 $COL_TIME INTEGER NOT NULL,
-                $COL_PINNED INTEGER NOT NULL DEFAULT 0
+                $COL_PINNED INTEGER NOT NULL DEFAULT 0,
+                $COL_IS_VALID INTEGER NOT NULL DEFAULT 1
             )
             """.trimIndent()
         )
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 简单平滑升级策略
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE $TABLE_HISTORY ADD COLUMN $COL_IS_VALID INTEGER NOT NULL DEFAULT 1")
+        }
     }
 
     /**
@@ -67,6 +70,7 @@ class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
                     put(COL_PROGRESS, progress.coerceIn(0f, 1f))
                     put(COL_TIME, System.currentTimeMillis())
                     put(COL_PINNED, if (existingPinned) 1 else 0)
+                    put(COL_IS_VALID, 1)
                 }
                 db.insertWithOnConflict(TABLE_HISTORY, null, values, SQLiteDatabase.CONFLICT_REPLACE)
             }
@@ -83,6 +87,22 @@ class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
                 val db = writableDatabase
                 val values = ContentValues().apply {
                     put(COL_PINNED, if (isPinned) 1 else 0)
+                }
+                db.update(TABLE_HISTORY, values, "$COL_URI = ?", arrayOf(uri))
+            }
+            refreshFlow()
+        }
+    }
+
+    /**
+     * 更新文档有效性标记
+     */
+    fun markValidity(uri: String, isValid: Boolean) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val db = writableDatabase
+                val values = ContentValues().apply {
+                    put(COL_IS_VALID, if (isValid) 1 else 0)
                 }
                 db.update(TABLE_HISTORY, values, "$COL_URI = ?", arrayOf(uri))
             }
@@ -172,6 +192,12 @@ class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
         val progress = cursor.getFloat(cursor.getColumnIndexOrThrow(COL_PROGRESS))
         val time = cursor.getLong(cursor.getColumnIndexOrThrow(COL_TIME))
         val pinned = cursor.getInt(cursor.getColumnIndexOrThrow(COL_PINNED)) == 1
+        val validColIndex = cursor.getColumnIndex(COL_IS_VALID)
+        val isValid = if (validColIndex != -1) {
+            cursor.getInt(validColIndex) == 1
+        } else {
+            true
+        }
 
         return RecentDocument(
             uriString = uri,
@@ -180,13 +206,14 @@ class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
             lastReadPage = lastPage,
             progressPercent = progress,
             lastReadTime = time,
-            isPinned = pinned
+            isPinned = pinned,
+            isValid = isValid
         )
     }
 
     companion object {
         private const val DB_NAME = "lumina_reader.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
 
         private const val TABLE_HISTORY = "reading_history"
         private const val COL_URI = "uri"
@@ -196,5 +223,6 @@ class HistoryDatabase(context: Context) : SQLiteOpenHelper(context, DB_NAME, nul
         private const val COL_PROGRESS = "progress"
         private const val COL_TIME = "last_read_time"
         private const val COL_PINNED = "is_pinned"
+        private const val COL_IS_VALID = "is_valid"
     }
 }

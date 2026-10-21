@@ -19,6 +19,7 @@ import org.lumina.reader.ui.shelf.ShelfScreen
 import org.lumina.reader.ui.theme.LuminaTheme
 import org.lumina.reader.ui.viewer.ViewerScreen
 import org.lumina.reader.ui.viewer.ViewerViewModel
+import kotlinx.coroutines.flow.receiveAsFlow
 
 class MainActivity : ComponentActivity() {
 
@@ -64,6 +65,13 @@ class MainActivity : ComponentActivity() {
                             val window = this@MainActivity.window
                             val controller = WindowCompat.getInsetsController(window, window.decorView)
                             controller.show(WindowInsetsCompat.Type.systemBars())
+                        }
+                    }
+
+                    // 监听文档打开失败事件，自动回退/停留在书架
+                    LaunchedEffect(Unit) {
+                        viewerViewModel.openDocumentErrorEvent.receiveAsFlow().collect {
+                            currentDocumentUri = null
                         }
                     }
 

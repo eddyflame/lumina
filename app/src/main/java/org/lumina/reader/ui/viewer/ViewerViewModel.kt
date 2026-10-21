@@ -159,6 +159,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     val recentDocuments: StateFlow<List<RecentDocument>> = repository.recentDocuments
     val themeSettings: StateFlow<ThemeSettings> = themePreferences.themeSettings
     val triggerSaveAsEvent = Channel<String>(Channel.BUFFERED)
+    val openDocumentErrorEvent = Channel<String>(Channel.BUFFERED)
 
     fun setThemeMode(mode: AppThemeMode) {
         themePreferences.setThemeMode(mode)
@@ -176,6 +177,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             _uiState.update {
                 it.copy(
                     isLoading = true,
+                    documentInfo = null,
                     errorMessage = null,
                     activeColumnBounds = null,
                     activeColumnPageIndex = null,
@@ -185,6 +187,22 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                     annotations = emptyMap()
                 )
             }
+
+            if (!repository.isDocumentAccessible(uri)) {
+                repository.closeDocument()
+                repository.markDocumentInvalid(uri.toString())
+                val errorMsg = getApplication<Application>().getString(R.string.document_invalid_message)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        documentInfo = null,
+                        errorMessage = errorMsg
+                    )
+                }
+                openDocumentErrorEvent.send(errorMsg)
+                return@launch
+            }
+
             try {
                 val doc = repository.openDocument(uri)
                 val outlines = repository.pdfEngine.getOutlines()
@@ -202,16 +220,39 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 schedulePrefetch(doc.initialPage, doc.pageCount)
             } catch (e: Exception) {
+                repository.closeDocument()
+                repository.markDocumentInvalid(uri.toString())
+                val errorMsg = getApplication<Application>().getString(
+                    R.string.error_open_document,
+                    e.localizedMessage ?: e.message ?: ""
+                )
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = getApplication<Application>().getString(
-                            R.string.error_open_document,
-                            e.localizedMessage ?: e.message ?: ""
-                        )
+                        documentInfo = null,
+                        errorMessage = errorMsg
                     )
                 }
+                openDocumentErrorEvent.send(errorMsg)
             }
+        }
+    }
+
+    fun closeDocument() {
+        closeSearch()
+        resetAllPageZooms()
+        undoRedoManager.clear()
+        repository.closeDocument()
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                documentInfo = null,
+                errorMessage = null,
+                activeColumnBounds = null,
+                activeColumnPageIndex = null,
+                annotationTool = AnnotationTool.NONE,
+                annotations = emptyMap()
+            )
         }
     }
 
@@ -384,6 +425,12 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun togglePinRecentDocument(uri: String, isPinned: Boolean) {
         repository.togglePinRecentDocument(uri, isPinned)
+    }
+
+    fun validateRecentDocuments() {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.validateRecentDocuments()
+        }
     }
 
     // ================================= 注释与手写动作 =================================

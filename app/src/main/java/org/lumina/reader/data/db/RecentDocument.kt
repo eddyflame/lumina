@@ -17,7 +17,8 @@ data class RecentDocument(
     val lastReadPage: Int,
     val progressPercent: Float,
     val lastReadTime: Long,
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    val isValid: Boolean = true
 ) {
     val uri: Uri get() = Uri.parse(uriString)
 

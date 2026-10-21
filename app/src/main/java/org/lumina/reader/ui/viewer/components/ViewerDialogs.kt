@@ -20,6 +20,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.provider.DocumentsContract
+import android.provider.MediaStore
+import androidx.compose.foundation.text.selection.SelectionContainer
 import org.lumina.reader.R
 import org.lumina.reader.core.model.PdfDocumentInfo
 
@@ -86,30 +92,107 @@ fun JumpPageDialog(
     )
 }
 
+/**
+ * 尽量将系统 Uri 解析为人类可读的物理文件路径或友好路径
+ */
+fun resolveDisplayPath(context: Context, uri: Uri): String {
+    try {
+        if (uri.scheme == "file") {
+            return uri.path ?: uri.toString()
+        }
+
+        if (uri.scheme == "content") {
+            // 1. SAF ExternalStorageProvider 解析
+            if (DocumentsContract.isDocumentUri(context, uri)) {
+                val docId = DocumentsContract.getDocumentId(uri)
+                if (uri.authority == "com.android.externalstorage.documents") {
+                    val split = docId.split(":")
+                    if (split.size >= 2) {
+                        val type = split[0]
+                        val relativePath = split[1]
+                        return if ("primary".equals(type, ignoreCase = true)) {
+                            "${Environment.getExternalStorageDirectory().path}/$relativePath"
+                        } else {
+                            "/storage/$type/$relativePath"
+                        }
+                    }
+                } else if (uri.authority == "com.android.providers.downloads.documents") {
+                    if (docId.startsWith("raw:")) {
+                        return docId.removePrefix("raw:")
+                    }
+                }
+            }
+
+            // 2. 尝试从 MediaStore 查询 _data 真实文件路径
+            try {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(MediaStore.MediaColumns.DATA),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val index = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                        if (index != -1) {
+                            val data = cursor.getString(index)
+                            if (!data.isNullOrBlank() && (data.startsWith("/") || data.startsWith("file://"))) {
+                                return data
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 3. 回退为 URL 解码后的友好显示路径
+            return Uri.decode(uri.toString())
+        }
+    } catch (_: Exception) {}
+
+    return uri.path ?: uri.toString()
+}
+
 @Composable
 fun DocInfoDialog(
     docInfo: PdfDocumentInfo,
     currentPageIndex: Int,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val filePath = remember(docInfo.uri) {
+        resolveDisplayPath(context, docInfo.uri)
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.document_info)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.doc_info_name, docInfo.title), style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    stringResource(R.string.doc_info_total_pages, docInfo.pageCount),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    stringResource(R.string.doc_info_current_page, currentPageIndex + 1),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                if (docInfo.fileSize > 0) {
-                    val sizeMb =
-                        String.format(java.util.Locale.getDefault(), "%.2f MB", docInfo.fileSize / (1024f * 1024f))
-                    Text(stringResource(R.string.doc_info_size, sizeMb), style = MaterialTheme.typography.bodyMedium)
+            SelectionContainer {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.doc_info_name, docInfo.title),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        stringResource(R.string.doc_info_path, filePath),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        stringResource(R.string.doc_info_total_pages, docInfo.pageCount),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        stringResource(R.string.doc_info_current_page, currentPageIndex + 1),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    if (docInfo.fileSize > 0) {
+                        val sizeMb =
+                            String.format(java.util.Locale.getDefault(), "%.2f MB", docInfo.fileSize / (1024f * 1024f))
+                        Text(
+                            stringResource(R.string.doc_info_size, sizeMb),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
         },

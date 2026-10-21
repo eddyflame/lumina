@@ -39,6 +39,23 @@ class DocumentRepository(
     /** 响应式书架流 */
     val recentDocuments: StateFlow<List<RecentDocument>> = historyDb.recentDocsFlow
 
+    /**
+     * 校验 URI 指向的文件是否依然存在且具备读取权限
+     */
+    fun isDocumentAccessible(uri: Uri): Boolean {
+        return try {
+            if (uri.scheme == "file") {
+                val path = uri.path ?: return false
+                val file = File(path)
+                file.exists() && file.canRead()
+            } else {
+                context.contentResolver.openFileDescriptor(uri, "r")?.use { true } ?: false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     suspend fun openDocument(uri: Uri): PdfDocumentInfo {
         currentUri = uri
         // 对系统 SAF 选择器授予的 content:// URI 持久化权限，确保跨进程和重启后可继续从书架直接打开
@@ -56,16 +73,28 @@ class DocumentRepository(
         val resolver = context.contentResolver
         val title = queryDocumentTitle(uri) ?: "Document.pdf"
 
-        val pfd: ParcelFileDescriptor = resolver.openFileDescriptor(uri, "r")
-            ?: throw FileNotFoundException("无法通过 ContentResolver 获取文件描述符: $uri")
+        val pfd: ParcelFileDescriptor = try {
+            resolver.openFileDescriptor(uri, "r")
+                ?: throw FileNotFoundException("无法通过 ContentResolver 获取文件描述符: $uri")
+        } catch (e: Exception) {
+            currentUri = null
+            historyDb.markValidity(uri.toString(), false)
+            throw e
+        }
 
         // 检查该文件是否有上次阅读进度记忆
         val history = historyDb.getDocument(uri.toString())
         val initialPage = history?.lastReadPage ?: 0
 
-        val info = pdfEngine.open(uri, title, pfd, initialPage)
+        val info = try {
+            pdfEngine.open(uri, title, pfd, initialPage)
+        } catch (e: Exception) {
+            currentUri = null
+            historyDb.markValidity(uri.toString(), false)
+            throw e
+        }
 
-        // 记录并刷新历史
+        // 记录并刷新历史 (正常打开记录为有效)
         historyDb.recordProgress(uri.toString(), title, info.pageCount, initialPage)
 
         return info
@@ -244,6 +273,23 @@ class DocumentRepository(
 
     fun clearAllHistory() {
         historyDb.clearAll()
+    }
+
+    fun markDocumentInvalid(uri: String) {
+        historyDb.markValidity(uri, false)
+    }
+
+    /**
+     * 异步遍历校验书架历史文档可访问性并更新状态
+     */
+    suspend fun validateRecentDocuments() = withContext(Dispatchers.IO) {
+        val currentList = recentDocuments.value
+        for (doc in currentList) {
+            val accessible = isDocumentAccessible(doc.uri)
+            if (accessible != doc.isValid) {
+                historyDb.markValidity(doc.uriString, accessible)
+            }
+        }
     }
 
     /**
