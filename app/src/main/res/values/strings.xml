@@ -43,8 +43,9 @@
     <string name="recent_documents">Recent Documents</string>
     <string name="recent_reading_count">Recent Documents (%1$d)</string>
     <string name="no_matching_documents">No matching documents found</string>
-    <string name="no_recent_documents">No reading history. Click above to open a PDF document.</string>
-    <string name="no_recent_documents_hint">No reading history. Click above to import a PDF.</string>
+    <string name="shelf_empty_title">Empty Bookshelf</string>
+    <string name="no_recent_documents">No reading history. Tap \"Open Document\" to start reading.</string>
+    <string name="no_recent_documents_hint">No reading history. Tap \"Open Document\" to import a PDF and start reading.</string>
     <string name="clear_history_title">Clear Reading History</string>
     <string name="clear_history_message">Are you sure you want to clear all reading history? This only clears records and will not delete the original PDF files.</string>
     <string name="pinned">Pinned</string>

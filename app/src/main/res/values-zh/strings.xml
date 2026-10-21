@@ -43,8 +43,9 @@
     <string name="recent_documents">最近阅读</string>
     <string name="recent_reading_count">最近阅读 (%1$d)</string>
     <string name="no_matching_documents">未找到相关文档</string>
-    <string name="no_recent_documents">暂无阅读历史，点击上方按钮打开 PDF 文档</string>
-    <string name="no_recent_documents_hint">暂无阅读记录，点击上方导入 PDF</string>
+    <string name="shelf_empty_title">书架暂无文档</string>
+    <string name="no_recent_documents">暂无阅读记录，点击「打开文档」开启阅读</string>
+    <string name="no_recent_documents_hint">暂无阅读记录，点击「打开文档」导入本地 PDF 开始阅读</string>
     <string name="clear_history_title">清空书架记录</string>
     <string name="clear_history_message">确定要清空所有最近阅读记录吗？此操作仅清除记录，不会删除手机本地的 PDF 原始文件。</string>
     <string name="pinned">置顶</string>

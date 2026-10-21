@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,12 +89,12 @@ fun ShelfScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            LargeTopAppBar(
+            TopAppBar(
                 title = {
                     Column {
                         Text(
                             text = "Lumina",
-                            style = MaterialTheme.typography.headlineLarge.copy(
+                            style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = (-0.5).sp
                             ),
@@ -131,7 +132,7 @@ fun ShelfScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
@@ -146,15 +147,69 @@ fun ShelfScreen(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // 搜索框
-            if (recentList.isNotEmpty()) {
+        if (recentList.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                        modifier = Modifier.size(92.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.MenuBook,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(46.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = stringResource(R.string.shelf_empty_title),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.no_recent_documents_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = { pdfPickerLauncher.launch(arrayOf("application/pdf")) },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_open_document), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // 搜索框
                 item {
                     OutlinedTextField(
                         value = searchQuery,
@@ -176,118 +231,72 @@ fun ShelfScreen(
                         )
                     )
                 }
-            }
 
-            // 顶部快速导入卡片
-            item {
-                ElevatedCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { pdfPickerLauncher.launch(arrayOf("application/pdf")) },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.elevatedCardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                // 最近文档标题栏
+                item {
+                    Text(
+                        text = if (searchQuery.isNotBlank()) {
+                            stringResource(R.string.search_results_title, filteredList.size)
+                        } else {
+                            stringResource(R.string.recent_reading_count, filteredList.size)
+                        },
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                }
+
+                // 书架文档列表
+                if (filteredList.isEmpty()) {
+                    item {
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary),
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                Icons.Default.FolderOpen,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text(
-                                text = stringResource(R.string.choose_pdf_from_storage),
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = stringResource(R.string.storage_picker_hint),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 最近文档标题栏
-            item {
-                Text(
-                    text = if (filteredList.isEmpty()) {
-                        stringResource(R.string.reading_history)
-                    } else {
-                        stringResource(R.string.recent_reading_count, filteredList.size)
-                    },
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            // 书架文档列表
-            if (filteredList.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 40.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.MenuBook,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.outlineVariant,
-                                modifier = Modifier.size(56.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = if (searchQuery.isNotBlank()) {
-                                    stringResource(R.string.no_matching_documents)
-                                } else {
-                                    stringResource(R.string.no_recent_documents_hint)
-                                },
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                }
-            } else {
-                items(filteredList, key = { it.uriString }) { doc ->
-                    RecentDocumentCard(
-                        doc = doc,
-                        onClick = { onOpenPdfUri(doc.uri) },
-                        onInvalidClick = {
-                            scope.launch {
-                                snackbarHostState.showSnackbar(
-                                    context.getString(R.string.document_invalid_message)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outlineVariant,
+                                    modifier = Modifier.size(52.dp)
                                 )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = stringResource(R.string.no_matching_documents),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                TextButton(onClick = { searchQuery = "" }) {
+                                    Text(stringResource(R.string.clear_search))
+                                }
                             }
-                        },
-                        onTogglePin = { viewModel.togglePinRecentDocument(doc.uriString, !doc.isPinned) },
-                        onDelete = { viewModel.deleteRecentDocument(doc.uriString) },
-                        onShowDetails = { docForDetails = doc }
-                    )
+                        }
+                    }
+                } else {
+                    items(filteredList, key = { it.uriString }) { doc ->
+                        RecentDocumentCard(
+                            doc = doc,
+                            onClick = { onOpenPdfUri(doc.uri) },
+                            onInvalidClick = {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        context.getString(R.string.document_invalid_message)
+                                    )
+                                }
+                            },
+                            onTogglePin = { viewModel.togglePinRecentDocument(doc.uriString, !doc.isPinned) },
+                            onDelete = { viewModel.deleteRecentDocument(doc.uriString) },
+                            onShowDetails = { docForDetails = doc }
+                        )
+                    }
                 }
-            }
 
-            item {
-                Spacer(modifier = Modifier.height(80.dp))
+                item {
+                    Spacer(modifier = Modifier.height(88.dp))
+                }
             }
         }
     }
