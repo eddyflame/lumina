@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.lumina.reader.R
 import org.lumina.reader.core.annotation.AnnotationTool
@@ -55,6 +56,7 @@ fun ViewerTopBar(
                 Text(
                     text = uiState.documentInfo?.title ?: stringResource(R.string.app_name),
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleMedium
                 )
             },

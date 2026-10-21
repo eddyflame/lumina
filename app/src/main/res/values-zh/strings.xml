@@ -51,6 +51,16 @@
     <string name="pin_document">置顶文档</string>
     <string name="unpin_document">取消置顶</string>
     <string name="remove_from_shelf">从书架移除</string>
+    <string name="document_details">文档详情</string>
+    <string name="copy_filename">复制文件名</string>
+    <string name="filename_copied">文件名已复制到剪贴板</string>
+    <string name="copy_filepath">复制文件路径</string>
+    <string name="filepath_copied">文件路径已复制到剪贴板</string>
+    <string name="doc_info_status">文件状态：%1$s</string>
+    <string name="doc_info_filename">文件名</string>
+    <string name="doc_status_normal">正常</string>
+    <string name="doc_status_invalid">文件已失效或已被移动、删除</string>
+    <string name="doc_info_last_read">最后阅读：%1$s</string>
 
     <!-- Recent Document Card Formatting -->
     <string name="recent_progress_format">%1$d%% · 第 %2$d / %3$d 页</string>

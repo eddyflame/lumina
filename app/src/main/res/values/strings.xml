@@ -51,6 +51,16 @@
     <string name="pin_document">Pin document</string>
     <string name="unpin_document">Unpin document</string>
     <string name="remove_from_shelf">Remove from bookshelf</string>
+    <string name="document_details">Document details</string>
+    <string name="copy_filename">Copy file name</string>
+    <string name="filename_copied">File name copied to clipboard</string>
+    <string name="copy_filepath">Copy file path</string>
+    <string name="filepath_copied">File path copied to clipboard</string>
+    <string name="doc_info_status">Status: %1$s</string>
+    <string name="doc_info_filename">File name</string>
+    <string name="doc_status_normal">Normal</string>
+    <string name="doc_status_invalid">Invalid or file moved/deleted</string>
+    <string name="doc_info_last_read">Last Read: %1$s</string>
 
     <!-- Recent Document Card Formatting -->
     <string name="recent_progress_format">%1$d%% · Page %2$d / %3$d</string>

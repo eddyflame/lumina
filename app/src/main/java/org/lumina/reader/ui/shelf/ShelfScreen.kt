@@ -1,6 +1,7 @@
 package org.lumina.reader.ui.shelf
 
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -11,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
@@ -20,9 +22,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -32,6 +38,11 @@ import org.lumina.reader.data.db.RecentDocument
 import org.lumina.reader.ui.settings.ThemeSettingsBottomSheet
 import org.lumina.reader.ui.viewer.ViewerViewModel
 import org.lumina.reader.ui.viewer.components.AboutAppDialog
+import org.lumina.reader.ui.viewer.components.resolveDisplayPath
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +56,7 @@ fun ShelfScreen(
     var showThemeSheet by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var docForDetails by remember { mutableStateOf<RecentDocument?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -268,7 +280,8 @@ fun ShelfScreen(
                             }
                         },
                         onTogglePin = { viewModel.togglePinRecentDocument(doc.uriString, !doc.isPinned) },
-                        onDelete = { viewModel.deleteRecentDocument(doc.uriString) }
+                        onDelete = { viewModel.deleteRecentDocument(doc.uriString) },
+                        onShowDetails = { docForDetails = doc }
                     )
                 }
             }
@@ -317,6 +330,18 @@ fun ShelfScreen(
             onDismiss = { showAboutDialog = false }
         )
     }
+
+    docForDetails?.let { doc ->
+        ShelfDocumentInfoDialog(
+            doc = doc,
+            onDismiss = { docForDetails = null },
+            onCopySuccess = { msg ->
+                scope.launch {
+                    snackbarHostState.showSnackbar(msg)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -325,7 +350,8 @@ fun RecentDocumentCard(
     onClick: () -> Unit,
     onInvalidClick: () -> Unit,
     onTogglePin: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onShowDetails: () -> Unit
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -353,18 +379,19 @@ fun RecentDocumentCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             // 点击主体区域：有效文档打开，失效文档拦截并提示
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .clickable(onClick = if (doc.isValid) onClick else onInvalidClick),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 // 文档格式图标徽章
                 Box(
                     modifier = Modifier
+                        .padding(top = 2.dp)
                         .size(44.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
@@ -390,28 +417,37 @@ fun RecentDocumentCard(
                 Spacer(modifier = Modifier.width(14.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top
+                    ) {
                         if (doc.isPinned && doc.isValid) {
                             Icon(
                                 Icons.Default.PushPin,
                                 contentDescription = stringResource(R.string.pinned),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
-                                    .size(14.dp)
-                                    .padding(end = 4.dp)
+                                    .padding(top = 2.dp, end = 4.dp)
+                                    .size(16.dp)
                             )
                         }
                         Text(
                             text = doc.title,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            maxLines = 1,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                lineBreak = LineBreak.Paragraph
+                            ),
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = true,
                             modifier = Modifier.weight(1f, fill = false)
                         )
                         if (!doc.isValid) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.errorContainer
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                modifier = Modifier.padding(top = 2.dp)
                             ) {
                                 Text(
                                     text = stringResource(R.string.document_invalid_badge),
@@ -423,7 +459,7 @@ fun RecentDocumentCard(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
                         text = if (doc.isValid) {
@@ -436,7 +472,7 @@ fun RecentDocumentCard(
                     )
 
                     if (doc.isValid) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         LinearProgressIndicator(
                             progress = { doc.progressPercent },
@@ -454,7 +490,7 @@ fun RecentDocumentCard(
             Spacer(modifier = Modifier.width(8.dp))
 
             // 独立选项菜单按钮，避免手势与卡片点击冲突
-            Box {
+            Box(modifier = Modifier.padding(top = 0.dp)) {
                 IconButton(onClick = { isMenuOpen = true }) {
                     Icon(
                         Icons.Default.MoreVert,
@@ -467,6 +503,14 @@ fun RecentDocumentCard(
                     expanded = isMenuOpen,
                     onDismissRequest = { isMenuOpen = false }
                 ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.document_details)) },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        onClick = {
+                            isMenuOpen = false
+                            onShowDetails()
+                        }
+                    )
                     DropdownMenuItem(
                         text = {
                             Text(
@@ -502,3 +546,210 @@ fun RecentDocumentCard(
         }
     }
 }
+
+@Composable
+fun ShelfDocumentInfoDialog(
+    doc: RecentDocument,
+    onDismiss: () -> Unit,
+    onCopySuccess: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val displayPath = remember(doc.uri) {
+        resolveDisplayPath(context, doc.uri)
+    }
+    val fullReadTime = remember(doc.lastReadTime) {
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        sdf.format(Date(doc.lastReadTime))
+    }
+    val fileSizeFormatted = remember(doc.uri) {
+        var size: Long = -1
+        try {
+            if (doc.uri.scheme == "content") {
+                context.contentResolver.query(
+                    doc.uri,
+                    arrayOf(OpenableColumns.SIZE),
+                    null, null, null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                        if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
+                            size = cursor.getLong(sizeIndex)
+                        }
+                    }
+                }
+            } else if (doc.uri.scheme == "file") {
+                val file = File(doc.uri.path ?: "")
+                if (file.exists()) {
+                    size = file.length()
+                }
+            }
+        } catch (_: Exception) {}
+        if (size > 0) {
+            String.format(Locale.getDefault(), "%.2f MB", size / (1024f * 1024f))
+        } else null
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = stringResource(R.string.document_details),
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            SelectionContainer {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // 1. 完整文件名展示与一键复制
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.doc_info_filename),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            TextButton(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(doc.title))
+                                    onCopySuccess(context.getString(R.string.filename_copied))
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = stringResource(R.string.copy_filename),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = doc.title,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+
+                    // 2. 存储路径展示与一键复制
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.doc_info_path, "").trimEnd(':', ' ', '：'),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold
+                            )
+                            TextButton(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(displayPath))
+                                    onCopySuccess(context.getString(R.string.filepath_copied))
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = stringResource(R.string.copy_filepath),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        ) {
+                            Text(
+                                text = displayPath,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+
+                    // 3. 详细元数据
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = stringResource(R.string.doc_info_total_pages, doc.pageCount),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = stringResource(R.string.doc_info_current_page, doc.lastReadPage + 1) + " (${(doc.progressPercent * 100).toInt()}%)",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        fileSizeFormatted?.let { sizeStr ->
+                            Text(
+                                text = stringResource(R.string.doc_info_size, sizeStr),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.doc_info_last_read, fullReadTime),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.doc_info_status,
+                                stringResource(if (doc.isValid) R.string.doc_status_normal else R.string.doc_status_invalid)
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (doc.isValid) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+                            fontWeight = if (!doc.isValid) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_confirm))
+            }
+        }
+    )
+}
+
