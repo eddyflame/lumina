@@ -12,7 +12,7 @@
 - **存储文件**：`lumina-release.jks`（或自定义路径）
 - **别名 (Key Alias)**：`lumina`
 - **算法与长度**：RSA 2048-bit
-- **主体信息 (DN)**：`CN=Lumina Reader, OU=Mobile, O=Lumina, L=Shenzhen, ST=Guangdong, C=CN`
+- **主体信息 (DN)**：`CN=Lumina Reader, OU=Mobile, O=Lumina, C=CN`
 - **有效期**：2026 年至 2054 年 (10,000 天)
 
 ---
