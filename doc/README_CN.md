@@ -1,4 +1,4 @@
-# Lumina Reader (LuminaPDF) - 项目说明
+# Lumina Reader - 项目说明
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Android-0284C7?style=for-the-badge&logo=android&logoColor=white" alt="Android" />
@@ -119,8 +119,8 @@ graph TD
 
 ```bash
 # 1. 克隆代码仓库
-git clone https://github.com/your-username/lumina-pdf.git
-cd lumina-pdf
+git clone https://github.com/your-username/lumina-reader.git
+cd lumina-reader
 
 # 2. 赋予 gradlew 执行权限
 chmod +x gradlew

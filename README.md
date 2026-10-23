@@ -1,4 +1,4 @@
-# Lumina Reader (LuminaPDF)
+# Lumina Reader
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Android-0284C7?style=for-the-badge&logo=android&logoColor=white" alt="Android" />
@@ -120,8 +120,8 @@ graph TD
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/your-username/lumina-pdf.git
-cd lumina-pdf
+git clone https://github.com/your-username/lumina-reader.git
+cd lumina-reader
 
 # 2. Grant execution permissions
 chmod +x gradlew

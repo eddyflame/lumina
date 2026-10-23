@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Themed / Monochrome Icon for Android 13+ Material You -->
+    <!-- Left Page Wing -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,40 C 43,35 33,33 24,35 L 27,65 C 35,63 44,68 54,73 Z M 52,44 C 44,40 36,39 28,40 L 30,62 C 37,60 45,64 52,68 Z" />
+
+    <!-- Right Page Wing -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,40 C 65,35 75,33 84,35 L 81,65 C 73,63 64,68 54,73 Z M 56,68 C 63,64 71,60 78,62 L 80,40 C 72,39 64,40 56,44 Z" />
+
+    <!-- Stylus Diamond Apex & Spine Core -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,21 L 51,28 L 53,30 L 53,74 L 55,74 L 55,30 L 57,28 Z" />
+
+    <!-- Center Jewel -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 54,50.8 A 2.2,2.2 0 1 0 54,55.2 A 2.2,2.2 0 1 0 54,50.8" />
+
+</vector>

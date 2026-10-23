@@ -50,8 +50,8 @@ export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
 
 ### 3.1 Clone the Repository
 ```bash
-git clone https://github.com/your-username/lumina-pdf.git
-cd lumina-pdf
+git clone https://github.com/your-username/lumina-reader.git
+cd lumina-reader
 ```
 
 ### 3.2 Common Gradle Commands

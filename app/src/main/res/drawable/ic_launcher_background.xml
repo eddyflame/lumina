@@ -1,10 +1,115 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- 1. Deep Obsidian Slate Gradient Canvas -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#050813" />
+                <item android:offset="0.5" android:color="#0F172A" />
+                <item android:offset="1.0" android:color="#020409" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 2. Concentric Precision Optics Reticles -->
+    <!-- R=42 Reticle -->
     <path
-        android:fillColor="#1E293B"
-        android:pathData="M0,0h108v108h-108z" />
+        android:pathData="M 54,12 A 42,42 0 1 0 54,96 A 42,42 0 1 0 54,12"
+        android:strokeWidth="0.8"
+        android:strokeAlpha="0.12">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="14"
+                android:startY="14"
+                android:endX="94"
+                android:endY="94"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#38BDF8" />
+                <item android:offset="1.0" android:color="#8B5CF6" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- R=33 Reticle -->
+    <path
+        android:pathData="M 54,21 A 33,33 0 1 0 54,87 A 33,33 0 1 0 54,21"
+        android:strokeWidth="0.6"
+        android:strokeAlpha="0.08"
+        android:strokeColor="#8B5CF6" />
+
+    <!-- R=24 Reticle -->
+    <path
+        android:pathData="M 54,30 A 24,24 0 1 0 54,78 A 24,24 0 1 0 54,30"
+        android:strokeWidth="0.5"
+        android:strokeAlpha="0.06"
+        android:strokeColor="#38BDF8" />
+
+    <!-- 3. Diagonal Reading Ticks -->
+    <path
+        android:pathData="M 24,24 L 27,27 M 84,24 L 81,27 M 24,84 L 27,81 M 84,84 L 81,81"
+        android:strokeWidth="0.8"
+        android:strokeAlpha="0.22"
+        android:strokeColor="#38BDF8" />
+
+    <!-- 4. Document Margin HUD Corner Target Reticles -->
+    <!-- Top-Left Reticle [21, 21] -->
+    <path
+        android:pathData="M 21,29 L 21,21 L 29,21"
+        android:strokeWidth="1.2"
+        android:strokeAlpha="0.28"
+        android:strokeLineCap="round"
+        android:strokeColor="#38BDF8" />
+
+    <!-- Top-Right Reticle [87, 21] -->
+    <path
+        android:pathData="M 87,29 L 87,21 L 79,21"
+        android:strokeWidth="1.2"
+        android:strokeAlpha="0.28"
+        android:strokeLineCap="round"
+        android:strokeColor="#A855F7" />
+
+    <!-- Bottom-Left Reticle [21, 87] -->
+    <path
+        android:pathData="M 21,79 L 21,87 L 29,87"
+        android:strokeWidth="1.2"
+        android:strokeAlpha="0.22"
+        android:strokeLineCap="round"
+        android:strokeColor="#38BDF8" />
+
+    <!-- Bottom-Right Reticle [87, 87] -->
+    <path
+        android:pathData="M 87,79 L 87,87 L 79,87"
+        android:strokeWidth="1.2"
+        android:strokeAlpha="0.22"
+        android:strokeLineCap="round"
+        android:strokeColor="#A855F7" />
+
+    <!-- 5. Cardinal Grid Axes Crosshairs -->
+    <!-- Center Vertical Spine Axis -->
+    <path
+        android:pathData="M 54,12 L 54,16 M 54,92 L 54,96"
+        android:strokeWidth="1.0"
+        android:strokeAlpha="0.28"
+        android:strokeLineCap="round"
+        android:strokeColor="#94A3B8" />
+
+    <!-- Horizontal Page Alignment Axis -->
+    <path
+        android:pathData="M 12,54 L 16,54 M 92,54 L 96,54"
+        android:strokeWidth="1.0"
+        android:strokeAlpha="0.28"
+        android:strokeLineCap="round"
+        android:strokeColor="#94A3B8" />
+
 </vector>
